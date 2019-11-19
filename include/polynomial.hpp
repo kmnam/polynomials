@@ -35,7 +35,7 @@ Matrix<T, Dynamic, 1> appendZeros(const Ref<Matrix<T, Dynamic, 1> >& v, unsigned
      */
     Matrix<T, Dynamic, 1> w(v);
     w.conservativeResize(w.size() + j);
-    for (unsigned i = w.size(); i < w.size() + j; ++i) w(i) = 0;
+    for (unsigned i = v.size(); i < w.size(); ++i) w(i) = 0;
     return w;
 }
 
@@ -53,9 +53,17 @@ class Polynomial
             /*
              * Empty constructor for the zero polynomial.
              */
-            this->deg = 0.0;
-            this->coefs.resize(1);
-            this->coefs << 0.0;
+            this->deg = 0;
+            this->coefs = Matrix<T, Dynamic, 1>::Zero(1);
+        }
+
+        Polynomial(const T coef)
+        {
+            /*
+             * Constructor with user-specified constant.
+             */
+            this->deg = 0;
+            this->coefs = Matrix<T, Dynamic, 1>::Constant(1, 1, coef);
         }
 
         Polynomial(const Ref<const Matrix<T, Dynamic, 1> >& coefs)
@@ -149,9 +157,9 @@ class Polynomial
             Matrix<T, Dynamic, 1> p_coefs(this->coefs);
             Matrix<T, Dynamic, 1> q_coefs(q.coefficients());
             if (this->deg > q.degree())
-                q_coefs = appendZeros<T>(q_coefs, q.degree() - this->deg);
+                q_coefs = appendZeros<T>(q_coefs, this->deg - q.degree());
             else if (this->deg < q.degree())
-                p_coefs = appendZeros<T>(p_coefs, this->deg - q.degree());
+                p_coefs = appendZeros<T>(p_coefs, q.degree() - this->deg);
 
             // Instantiate the sum polynomial
             return Polynomial(p_coefs + q_coefs);
@@ -177,9 +185,9 @@ class Polynomial
             Matrix<T, Dynamic, 1> p_coefs(this->coefs);
             Matrix<T, Dynamic, 1> q_coefs(q.coefficients());
             if (this->deg > q.degree())
-                q_coefs = appendZeros<T>(q_coefs, q.degree() - this->deg);
+                q_coefs = appendZeros<T>(q_coefs, this->deg - q.degree());
             else if (this->deg < q.degree())
-                p_coefs = appendZeros<T>(p_coefs, this->deg - q.degree());
+                p_coefs = appendZeros<T>(p_coefs, q.degree() - this->deg);
 
             // Instantiate the difference polynomial
             return Polynomial(p_coefs - q_coefs);
@@ -213,9 +221,9 @@ class Polynomial
             Matrix<T, Dynamic, 1> q_coefs = q.coefficients();
 
             // Evaluate the two polynomials at the (2d)-th roots of unity
+            unsigned max_deg = std::max(p_deg, q_deg);
             Array<std::complex<T>, Dynamic, 1> values_p(2 * max_deg);
             Array<std::complex<T>, Dynamic, 1> values_q(2 * max_deg);
-            std::vector<Comp<T> > values_p, values_q;
             for (unsigned i = 0; i < 2 * max_deg; ++i)
             {
                 T a = std::cos(two_pi * i / (2 * max_deg));
