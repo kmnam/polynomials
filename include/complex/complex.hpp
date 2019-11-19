@@ -232,4 +232,41 @@ class ComplexNumber
         }
 };
 
+template <typename T>
+ComplexNumber<T> operator+(const T x, const ComplexNumber<T>& z)
+{
+    /*
+     * Return the result of adding real x and complex z.
+     */
+    return ComplexNumber<T>(x + z.real(), z.imag());
+}
+
+template <typename T>
+ComplexNumber<T> operator-(const T x, const ComplexNumber<T>& z)
+{
+    /*
+     * Return the result of subtracting complex z from real x.
+     */
+    return ComplexNumber<T>(x - z.real(), -z.imag());
+}
+
+template <typename T>
+ComplexNumber<T> operator*(const T x, const ComplexNumber<T>& z)
+{
+    /*
+     * Return the result of multiplying real x and complex z.
+     */
+    return ComplexNumber<T>(x * z.real(), x * z.imag());
+}
+
+template <typename T>
+ComplexNumber<T> operator/(const T x, const ComplexNumber<T>& z)
+{
+    /*
+     * Return the result of dividing real x by complex z.
+     */
+    T modulus = z.abs2();
+    return ComplexNumber<T>(x * z.real() / modulus, -x * z.imag() / modulus);
+}
+
 #endif
