@@ -45,7 +45,7 @@ class ComplexNumber
              */
         }
 
-        T real()
+        T real() const
         {
             /*
              * Return the real part of this complex number.
@@ -53,7 +53,7 @@ class ComplexNumber
             return this->a;
         }
 
-        T imag()
+        T imag() const
         {
             /*
              * Return the imaginary part of this complex number.
@@ -61,7 +61,7 @@ class ComplexNumber
             return this->b;
         }
 
-        ComplexNumber conj()
+        ComplexNumber conj() const
         {
             /*
              * Return the conjugate of this complex number.
@@ -69,7 +69,7 @@ class ComplexNumber
             return ComplexNumber(this->a, -this->b);
         }
 
-        T abs2()
+        T abs2() const
         {
             /*
              * Return the squared modulus of this complex number.
@@ -77,7 +77,7 @@ class ComplexNumber
             return (this->a * this->a) + (this->b * this->b);
         }
 
-        ComplexNumber operator+(const ComplexNumber<T>& z)
+        ComplexNumber operator+(const ComplexNumber<T>& z) const
         {
             /*
              * Return the result of adding by z.
@@ -112,7 +112,7 @@ class ComplexNumber
             return *this;
         }
 
-        ComplexNumber operator-(const ComplexNumber<T>& z)
+        ComplexNumber operator-(const ComplexNumber<T>& z) const
         {
             /*
              * Return the result of subtracting by z.
@@ -120,7 +120,34 @@ class ComplexNumber
             return ComplexNumber(this->a - z.real(), this->b - z.imag());
         }
 
-        ComplexNumber operator*(const ComplexNumber<T>& z)
+        ComplexNumber operator-(const T x) const
+        {
+            /*
+             * Return the result of subtracting by x.
+             */
+            return ComplexNumber(this->a - x, this->b);
+        }
+
+        ComplexNumber& operator-=(const ComplexNumber<T>& z)
+        {
+            /*
+             * In-place subtraction by z.
+             */
+            this->a -= z.real();
+            this->b -= z.imag();
+            return *this;
+        }
+
+        ComplexNumber& operator-=(const T x)
+        {
+            /*
+             * In-place subtraction by x.
+             */
+            this->a -= x;
+            return *this;
+        }
+
+        ComplexNumber operator*(const ComplexNumber<T>& z) const
         {
             /*
              * Return the result of multiplying by z.
@@ -131,7 +158,37 @@ class ComplexNumber
             );
         }
 
-        ComplexNumber operator/(const ComplexNumber<T>& z)
+        ComplexNumber operator*(const T x) const
+        {
+            /*
+             * Return the result of multiplying by x.
+             */
+            return ComplexNumber(this->a * x, this->b * x);
+        }
+
+        ComplexNumber& operator*=(const ComplexNumber<T>& z)
+        {
+            /*
+             * In-place multiplication by z.
+             */
+            T a_ = this->a * z.real() - this->b * z.imag();
+            T b_ = this->a * z.imag() + this->b * z.real();
+            this->a = a_;
+            this->b = b_;
+            return *this;
+        }
+
+        ComplexNumber& operator*=(const T x)
+        {
+            /*
+             * In-place multiplication by x.
+             */
+            this->a *= x;
+            this->b *= x;
+            return *this;
+        }
+
+        ComplexNumber operator/(const ComplexNumber<T>& z) const
         {
             /*
              * Return the result of dividing by z.
@@ -141,6 +198,37 @@ class ComplexNumber
                 (this->a * z.real() + this->b * z.imag()) / modulus,
                 (this->b * z.real() - this->a * z.imag()) / modulus
             );
+        }
+
+        ComplexNumber operator/(const T x) const
+        {
+            /*
+             * Return the result of dividing by x.
+             */
+            return ComplexNumber(this->a / x, this->b / x);
+        }
+
+        ComplexNumber& operator/=(const ComplexNumber<T>& z)
+        {
+            /*
+             * In-place division by z.
+             */
+            T modulus = z.abs2();
+            T a_ = (this->a * z.real() + this->b * z.imag()) / modulus;
+            T b_ = (this->b * z.real() - this->a * z.imag()) / modulus;
+            this->a = a_;
+            this->b = b_;
+            return *this;
+        }
+
+        ComplexNumber& operator/=(const T x) const
+        {
+            /*
+             * In-place division by x.
+             */
+            this->a /= x;
+            this->b /= x;
+            return *this;
         }
 };
 
