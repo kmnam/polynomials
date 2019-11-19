@@ -29,6 +29,15 @@ class ComplexNumber
             this->b = 0.0;
         }
 
+        ComplexNumber(T a)
+        {
+            /*
+             * Trivial constructor with specified real part.
+             */
+            this->a = a;
+            this->b = 0.0;
+        }
+
         ComplexNumber(T a, T b)
         {
             /*
@@ -59,6 +68,16 @@ class ComplexNumber
              * Return the imaginary part of this complex number.
              */
             return this->b;
+        }
+
+        ComplexNumber& operator=(const T x) 
+        {
+            /*
+             * Assignment from real type.
+             */
+            this->a = x;
+            this->b = 0.0;
+            return *this;
         }
 
         ComplexNumber conj() const
