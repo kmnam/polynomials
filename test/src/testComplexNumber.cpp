@@ -2,10 +2,9 @@
 #define BOOST_TEST_DYN_LINK
 #include <boost/test/included/unit_test.hpp>
 #include "../../include/complex/complex.hpp"
-#include "../../include/complex/eigen.hpp"
 
 /*
- * Test module for the Duals::DualNumber class.
+ * Test module for the ComplexNumber class.
  *
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
