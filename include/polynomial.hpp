@@ -274,6 +274,35 @@ class Polynomial
             return Polynomial(p_coefs);
         }
 
+        Polynomial& operator+=(const Polynomial<T>& q)
+        {
+            /*
+             * In-place addition by q.
+             */
+            // Copy over the coefficients into new vectors and resize 
+            // as necessary 
+            Matrix<T, Dynamic, 1> p_coefs(this->coefs);
+            Matrix<T, Dynamic, 1> q_coefs(q.coefficients());
+            if (this->deg > q.degree())
+                q_coefs = appendZeros<T>(q_coefs, this->deg - q.degree());
+            else if (this->deg < q.degree())
+                p_coefs = appendZeros<T>(p_coefs, q.degree() - this->deg);
+
+            // Update polynomial coefficients
+            this->coefs = removeTrailingZeros<T>(p_coefs + q_coefs);
+            this->deg = this->coefs.size() - 1;
+            return *this;
+        }
+
+        Polynomial& operator+=(const T s)
+        {
+            /*
+             * In-place addition by scalar s.
+             */
+            this->coefs(0) += s;
+            return *this;
+        }
+
         Polynomial operator-(const Polynomial<T>& q) const
         {
             /*
@@ -300,6 +329,35 @@ class Polynomial
             Matrix<T, Dynamic, 1> p_coefs(this->coefs);
             p_coefs(0) -= s;
             return Polynomial(p_coefs);
+        }
+
+        Polynomial& operator-=(const Polynomial<T>& q) 
+        {
+            /*
+             * In-place subtraction by q.
+             */
+            // Copy over the coefficients into new vectors and resize 
+            // as necessary 
+            Matrix<T, Dynamic, 1> p_coefs(this->coefs);
+            Matrix<T, Dynamic, 1> q_coefs(q.coefficients());
+            if (this->deg > q.degree())
+                q_coefs = appendZeros<T>(q_coefs, this->deg - q.degree());
+            else if (this->deg < q.degree())
+                p_coefs = appendZeros<T>(p_coefs, q.degree() - this->deg);
+
+            // Update polynomial coefficients
+            this->coefs = removeTrailingZeros<T>(p_coefs - q_coefs);
+            this->deg = this->coefs.size() - 1;
+            return *this;
+        }
+
+        Polynomial& operator-=(const T s)
+        {
+            /*
+             * In-place subtraction by scalar s.
+             */
+            this->coefs(0) -= s;
+            return *this;
         }
 
         Polynomial operator*(const Polynomial<T>& q) const
@@ -333,6 +391,40 @@ class Polynomial
             return Polynomial(p_coefs);
         }
 
+        Polynomial& operator*=(const Polynomial<T>& q) 
+        {
+            /*
+             * In-place multiplication by q.
+             *
+             * TODO Replace with a method based on FFT. 
+             */
+            unsigned p_deg = this->deg;
+            unsigned q_deg = q.degree();
+            Matrix<T, Dynamic, 1> q_coefs = q.coefficients();
+            Matrix<T, Dynamic, 1> pq_coefs = Matrix<T, Dynamic, 1>::Zero(p_deg + q_deg + 1);
+            for (unsigned i = 0; i <= p_deg; ++i)
+            {
+                for (unsigned j = 0; j <= q_deg; ++j)
+                {
+                    pq_coefs(i + j) += this->coefs(i) * q_coefs(j);
+                }
+            }
+
+            // Update polynomial coefficients
+            this->coefs = removeTrailingZeros<T>(pq_coefs);
+            this->deg = pq_coefs.size() - 1;
+            return *this;
+        }
+
+        Polynomial& operator*=(const T s)
+        {
+            /*
+             * In-place multiplication by scalar s.
+             */
+            this->coefs *= s;
+            return *this;
+        }
+
         Polynomial operator/(const T s) const
         {
             /*
@@ -341,6 +433,15 @@ class Polynomial
             Matrix<T, Dynamic, 1> p_coefs(this->coefs);
             p_coefs /= s;
             return Polynomial(p_coefs);
+        }
+
+        Polynomial& operator/=(const T s)
+        {
+            /*
+             * In-place division by scalar s.
+             */
+            this->coefs /= s;
+            return *this;
         }
 
         Polynomial diff() const 
@@ -358,4 +459,5 @@ class Polynomial
             return Polynomial(dcoefs);
         }
 };
+
 #endif
