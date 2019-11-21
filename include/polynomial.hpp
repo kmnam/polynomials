@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 #include <stdexcept>
+#include <complex>
+#include <limits>
 #include <Eigen/Dense>
 #include "complex/complex.hpp"
 
@@ -18,7 +20,7 @@
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     11/18/2019
+ *     11/21/2019
  */
 using namespace Eigen;
 
@@ -44,8 +46,82 @@ class Polynomial
 {
     private:
         unsigned deg;                    // Degree of the polynomial
-        Matrix<T, Dynamic, 1> coefs;     // Coefficients of the polynomial,
+        unsigned prec;                   // Maximum number of digits that can
+                                         // be represented by type T 
+        Matrix<T, Dynamic, 1> coefs;     // Coefficients of the polynomial
                                          // stored in ascending order of power
+
+        Polynomial multiplyFFT(const Polynomial<T>& q) const
+        {
+            /*
+             * Return the result of multiplying by q.
+             *
+             * Compute the product with q using the FFT algorithm:
+             * 1) Evaluate the two polynomials at the (2d + 2)-th roots of 
+             *    unity, where d = max(this->deg, q.degree).
+             * 2) Multiply the pairs of values obtained above.
+             * 3) Interpolate the pairs of values to obtain the product
+             *    polynomial. 
+             */
+            unsigned p_deg = this->deg;
+            unsigned q_deg = q.degree();
+            Matrix<T, Dynamic, 1> p_coefs;
+            Matrix<T, Dynamic, 1> q_coefs;
+            if (p_deg > q_deg)
+            {
+                p_coefs = this->coefs;
+                q_coefs = appendZeros<T>(q.coefficients(), p_deg - q_deg);
+            }
+            else if (p_deg < q_deg)
+            {
+                q_coefs = q.coefficients();
+                p_coefs = appendZeros<T>(this->coefs(), q_deg - p_deg);
+            }
+
+            // Evaluate the two polynomials at the (2d)-th roots of unity
+            unsigned pq_deg = 2 * std::max(p_deg, q_deg);
+            Array<std::complex<T>, Dynamic, 1> values_p(pq_deg);
+            Array<std::complex<T>, Dynamic, 1> values_q(pq_deg);
+            for (unsigned i = 0; i < pq_deg; ++i)
+            {
+                T a = std::cos(two_pi * i / pq_deg);
+                T b = std::sin(two_pi * i / pq_deg);
+                std::complex<T> z(a, b);
+                std::cout << i << " " << z << std::endl;
+                std::cout << this->eval(z) << std::endl;
+                std::cout << q.eval(z) << std::endl;
+                values_p(i) = this->eval(z);
+                values_q(i) = q.eval(z);
+            }
+            std::cout << values_p << "\n\n";
+            std::cout << values_q << "\n\n";
+
+            // Multiply the two vectors of values pointwise
+            auto values_pq = (values_p * values_q).matrix();
+
+            // Interpolate the product values by the inverse DFT
+            Matrix<std::complex<T>, Dynamic, Dynamic> inv_dft(pq_deg, pq_deg);
+            for (unsigned i = 0; i < pq_deg; ++i)
+            {
+                inv_dft(0, i) = 1.0;
+                inv_dft(i, 0) = 1.0;
+            }
+            for (unsigned i = 1; i < pq_deg; ++i)
+            {
+                for (unsigned j = 1; j < pq_deg; ++j)
+                {
+                    T a = std::cos(two_pi * i * j / pq_deg);
+                    T b = -std::sin(two_pi * i * j / pq_deg);
+                    std::complex<T> z(a, b);
+                    inv_dft(i, j) = z; 
+                }
+            }
+            std::cout << values_pq << "\n\n";
+            std::cout << inv_dft << "\n\n";
+            std::cout << inv_dft * values_pq << "\n\n";
+            Matrix<T, Dynamic, 1> prod_coefs = (inv_dft * values_pq).array().real().matrix();
+            return Polynomial(prod_coefs);
+        }
 
     public:
         Polynomial()
@@ -55,6 +131,7 @@ class Polynomial
              */
             this->deg = 0;
             this->coefs = Matrix<T, Dynamic, 1>::Zero(1);
+            this->prec = std::numeric_limits<T>::max_digits10;
         }
 
         Polynomial(const T coef)
@@ -64,6 +141,7 @@ class Polynomial
              */
             this->deg = 0;
             this->coefs = Matrix<T, Dynamic, 1>::Constant(1, 1, coef);
+            this->prec = std::numeric_limits<T>::max_digits10;
         }
 
         Polynomial(const Ref<const Matrix<T, Dynamic, 1> >& coefs)
@@ -71,8 +149,9 @@ class Polynomial
             /*
              * Constructor with user-specified coefficients.
              */
-            this->deg = coefs.size() - 1;
             this->coefs = coefs;
+            this->deg = coefs.size() - 1;
+            this->prec = std::numeric_limits<T>::max_digits10;
         }
 
         ~Polynomial()
@@ -109,7 +188,7 @@ class Polynomial
              * 2) Add by the previous coefficient
              */
             T y = this->coefs(this->deg);
-            for (unsigned i = this->deg - 1; i >= 0; ++i)
+            for (int i = this->deg - 1; i >= 0; --i)
             {
                 y *= x;
                 y += this->coefs(i);
@@ -124,7 +203,7 @@ class Polynomial
              * with Horner's method.
              */
             std::complex<T> y(this->coefs(this->deg), 0.0);
-            for (unsigned i = this->deg - 1; i >= 0; ++i)
+            for (int i = this->deg - 1; i >= 0; --i)
             {
                 y *= x;
                 y += this->coefs(i);
@@ -139,7 +218,7 @@ class Polynomial
              * at each coordinate of the vector x.
              */
             Array<T, Dynamic, 1> y = Array<T, Dynamic, 1>::Constant(x.size(), 1, this->coefs(this->deg));
-            for (unsigned i = this->deg - 1; i >= 0; ++i)
+            for (int i = this->deg - 1; i >= 0; --i)
             {
                 y *= x.array();
                 y += this->coefs(i);
@@ -208,53 +287,20 @@ class Polynomial
             /*
              * Return the result of multiplying by q.
              *
-             * Compute the product with q using the FFT algorithm:
-             * 1) Evaluate the two polynomials at the (2d + 2)-th roots of 
-             *    unity, where d = max(this->deg, q.degree).
-             * 2) Multiply the pairs of values obtained above.
-             * 3) Interpolate the pairs of values to obtain the product
-             *    polynomial. 
+             * TODO Replace with a method based on FFT. 
              */
-            unsigned p_deg = this->degree;
+            unsigned p_deg = this->deg;
             unsigned q_deg = q.degree();
-            Matrix<T, Dynamic, 1> p_coefs(this->coefs);
             Matrix<T, Dynamic, 1> q_coefs = q.coefficients();
-
-            // Evaluate the two polynomials at the (2d)-th roots of unity
-            unsigned max_deg = std::max(p_deg, q_deg);
-            Array<std::complex<T>, Dynamic, 1> values_p(2 * max_deg);
-            Array<std::complex<T>, Dynamic, 1> values_q(2 * max_deg);
-            for (unsigned i = 0; i < 2 * max_deg; ++i)
+            Matrix<T, Dynamic, 1> pq_coefs = Matrix<T, Dynamic, 1>::Zero(p_deg + q_deg + 1);
+            for (unsigned i = 0; i <= p_deg; ++i)
             {
-                T a = std::cos(two_pi * i / (2 * max_deg));
-                T b = std::sin(two_pi * i / (2 * max_deg));
-                std::complex<T> z(a, b);
-                values_p(i) = this->eval(z);
-                values_q(i) = q.eval(z);
-            }
-
-            // Multiply the two vectors of values pointwise
-            auto values_pq = (values_p * values_q).matrix();
-
-            // Interpolate the product values by the inverse DFT
-            Matrix<std::complex<T>, Dynamic, Dynamic> inv_dft(2 * max_deg, 2 * max_deg);
-            for (unsigned i = 0; i < 2 * max_deg; ++i)
-            {
-                inv_dft(0, i) = 1.0;
-                inv_dft(i, 0) = 1.0;
-            }
-            for (unsigned i = 1; i < 2 * max_deg; ++i)
-            {
-                for (unsigned j = 1; j < 2 * max_deg; ++j)
+                for (unsigned j = 0; j <= q_deg; ++j)
                 {
-                    T a = std::cos(two_pi * i * j / (2 * max_deg));
-                    T b = -std::sin(two_pi * i * j / (2 * max_deg));
-                    std::complex<T> z(a, b);
-                    inv_dft(i, j) = z; 
+                    pq_coefs(i + j) += this->coefs(i) * q_coefs(j);
                 }
             }
-            Matrix<T, Dynamic, 1> prod_coefs = inv_dft * values_pq;
-            return Polynomial(prod_coefs);
+            return Polynomial(pq_coefs);
         }
 
         Polynomial operator*(const T s) const
