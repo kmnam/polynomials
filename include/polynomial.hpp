@@ -30,7 +30,7 @@ using namespace Eigen;
 const double two_pi = 2.0 * std::acos(-1);
 
 template <typename T>
-Matrix<T, Dynamic, 1> appendZeros(const Ref<Matrix<T, Dynamic, 1> >& v, unsigned j)
+Matrix<T, Dynamic, 1> appendZeros(const Ref<const Matrix<T, Dynamic, 1> >& v, unsigned j)
 {
     /*
      * Pad the given vector, v, with j zeros. 
@@ -38,6 +38,26 @@ Matrix<T, Dynamic, 1> appendZeros(const Ref<Matrix<T, Dynamic, 1> >& v, unsigned
     Matrix<T, Dynamic, 1> w(v);
     w.conservativeResize(w.size() + j);
     for (unsigned i = v.size(); i < w.size(); ++i) w(i) = 0;
+    return w;
+}
+
+template <typename T>
+Matrix<T, Dynamic, 1> removeTrailingZeros(const Ref<const Matrix<T, Dynamic, 1> >& v)
+{
+    /*
+     * Remove trailing zeros from v.
+     */
+    Matrix<T, Dynamic, 1> w(v);
+    int size = v.size();
+    for (int i = v.size() - 1; i >= 0; --i)
+    {
+        if (v(i) == 0)
+        {
+            size--;
+            w = w.head(size);
+        }
+        else break;
+    }
     return w;
 }
 
@@ -149,8 +169,8 @@ class Polynomial
             /*
              * Constructor with user-specified coefficients.
              */
-            this->coefs = coefs;
-            this->deg = coefs.size() - 1;
+            this->coefs = removeTrailingZeros<T>(coefs);
+            this->deg = this->coefs.size() - 1;
             this->prec = std::numeric_limits<T>::max_digits10;
         }
 
