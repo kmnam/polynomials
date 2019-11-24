@@ -20,15 +20,13 @@
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     11/21/2019
+ *     11/24/2019
  */
 using namespace Eigen;
 
 // ------------------------------------------------------------------ //
 //                      VARIOUS HELPER FUNCTIONS                      //
 // ------------------------------------------------------------------ //
-const double two_pi = 2.0 * std::acos(-1);
-
 template <typename T>
 Matrix<T, Dynamic, 1> appendZeros(const Ref<const Matrix<T, Dynamic, 1> >& v, unsigned j)
 {
@@ -83,6 +81,7 @@ class Polynomial
              * 3) Interpolate the pairs of values to obtain the product
              *    polynomial. 
              */
+            const double two_pi = 2.0 * std::acos(-1);
             unsigned p_deg = this->deg;
             unsigned q_deg = q.degree();
             Matrix<T, Dynamic, 1> p_coefs;
