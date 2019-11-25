@@ -9,7 +9,7 @@
 #include <complex>
 #include <limits>
 #include <Eigen/Dense>
-#include "complex/complex.hpp"
+#include <boost/multiprecision/mpc.hpp>
 
 /*
  * A Polynomial class template with arbitrary real coefficients.
@@ -23,6 +23,12 @@
  *     11/24/2019
  */
 using namespace Eigen;
+using boost::multiprecision::number;
+using boost::multiprecision::mpc_complex_backend;
+typedef number<mpc_complex_backend<30> > mpc_30;
+typedef number<mpc_complex_backend<60> > mpc_60;
+typedef number<mpc_complex_backend<100> > mpc_100;
+typedef number<mpc_complex_backend<200> > mpc_200;
 
 // ------------------------------------------------------------------ //
 //                      VARIOUS HELPER FUNCTIONS                      //
@@ -58,6 +64,53 @@ Matrix<T, Dynamic, 1> removeTrailingZeros(const Ref<const Matrix<T, Dynamic, 1> 
     }
     return w;
 }
+
+template <typename CT>
+std::pair<std::vector<CT>, std::vector<double> > weierstrass(const std::vector<CT>& coefs,
+                                                             const std::vector<CT>& roots)
+{
+    /*
+     * Perform one iteration of Weierstrass' method, given the vector 
+     * of coefficients corresponding to the polynomial and a vector of 
+     * current root approximations.  
+     */
+    // Define a function for evaluating the given polynomial with 
+    // Horner's method
+    std::function<CT(CT)> eval = [coefs](CT x)
+    {
+        CT y = coefs[coefs.size() - 1];
+        for (int i = coefs.size() - 2; i >= 0; --i)
+        {
+            y *= x;
+            y += coefs[i];
+        }
+        return y;
+    };
+
+    // Perform the Weierstrass correction for each root
+    std::vector<CT> new_roots(roots);
+    for (unsigned j = 0; j < roots.size(); ++j)
+    {
+        CT denom = 1.0;
+        for (unsigned k = 0; k < roots.size(); ++k)
+        {
+            if (j != k) denom *= (new_roots[j] - new_roots[k]);
+        }
+        CT correction = -eval(new_roots[j]) / denom;
+        new_roots[j] += correction;
+    }
+
+    // Compute the absolute difference between each old and new root
+    std::vector<double> delta;
+    for (unsigned j = 0; j < roots.size(); ++j)
+    {
+        double dr = static_cast<double>(roots[j].real() - new_roots[j].real());
+        double di = static_cast<double>(roots[j].imag() - new_roots[j].imag());
+        delta.push_back(std::sqrt(std::pow(dr, 2.0) + std::pow(di, 2.0)));
+    }
+    return std::make_pair(new_roots, delta);
+}
+
 
 template <typename T>
 class Polynomial
@@ -140,6 +193,226 @@ class Polynomial
             std::cout << inv_dft * values_pq << "\n\n";
             Matrix<T, Dynamic, 1> prod_coefs = (inv_dft * values_pq).array().real().matrix();
             return Polynomial(prod_coefs);
+        }
+
+        Matrix<std::complex<T>, Dynamic, 1> rootsWeierstrass(unsigned max_iter = 20)
+        {
+            /*
+             * Run Weierstrass' method on the given polynomial, returning the 
+             * roots as type std::complex<T>.
+             */
+            bool converged = false;
+            bool quadratic = false;
+            unsigned iter = 0;
+
+            // Start with std::complex<T>
+            std::vector<std::complex<T> > roots;
+            for (unsigned i = 0; i < this->deg; ++i)
+            {   // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
+                roots.push_back(std::pow(std::complex<T>(0.4, 0.9), i)); 
+            }
+
+            // Write coefficients to a std::complex<T> vector
+            std::vector<std::complex<T> > coefs;
+            for (unsigned i = 0; i < this->coefs.size(); ++i)
+            {
+                std::complex<T> z(this->coefs(i), 0.0);
+                coefs.push_back(z);
+            }
+
+            // Run the algorithm until all roots exhibit quadratic convergence
+            // or the desired number of iterations is reached
+            std::vector<double> delta, new_delta;
+            for (unsigned i = 0; i < this->deg; ++i) delta.push_back(0.0);
+            while (iter < max_iter && !converged)
+            {
+                auto result = weierstrass<std::complex<T> >(coefs, roots);
+                std::vector<std::complex<T> > new_roots = result.first;
+                new_delta = result.second;
+                iter++;
+   
+                // Check that the change is less than the square of the 
+                // previous change for each root
+                for (unsigned j = 0; j < this->deg; ++j)
+                {
+                    quadratic = true;
+                    if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
+                    {
+                        quadratic = false;
+                        break;
+                    }
+                }
+                if (quadratic) converged = true;
+                roots = new_roots;
+                delta = new_delta;
+            }
+
+            // If not converged, try again with a boost::multiprecision::mpc type
+            unsigned prec = std::numeric_limits<T>::max_digits10;
+            while (!converged)
+            {
+                using boost::multiprecision::pow;
+                using boost::multiprecision::abs;
+                if (prec < 30)
+                {
+                    // Re-do the same calculations with mpc_30
+                    prec = 30; iter = 0;
+                    std::vector<mpc_30> roots2, coefs2;
+                    for (unsigned i = 0; i < this->deg; ++i)
+                    {
+                        roots2.push_back(pow(mpc_30("0.4", "0.9"), i));
+                        delta[i] = 0.0;
+                    }
+                    for (unsigned i = 0; i < this->coefs.size(); ++i)
+                    {
+                        std::stringstream ss;
+                        ss << std::numeric_limits<T>::max_digits10 << this->coefs(i);
+                        mpc_30 z(ss.str(), "0.0");
+                        coefs2.push_back(z);
+                    }
+                    while (iter < max_iter && !converged)
+                    {
+                        auto result = weierstrass<mpc_30>(coefs2, roots2);
+                        std::vector<mpc_30> new_roots = result.first;
+                        new_delta = result.second;
+                        iter++;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            quadratic = true;
+                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
+                            {
+                                quadratic = false;
+                                break;
+                            }
+                        }
+                        if (quadratic) converged = true;
+                        roots2 = new_roots;
+                        delta = new_delta;
+                    }
+                }
+                else if (prec < 60)
+                {
+                    // Re-do the same calculations with mpc_60
+                    prec = 60; iter = 0;
+                    std::vector<mpc_60> roots2, coefs2;
+                    for (unsigned i = 0; i < this->deg; ++i)
+                    {
+                        roots2.push_back(pow(mpc_60("0.4", "0.9"), i));
+                        delta[i] = 0.0;
+                    }
+                    for (unsigned i = 0; i < this->coefs.size(); ++i)
+                    {
+                        std::stringstream ss;
+                        ss << std::numeric_limits<T>::max_digits10 << this->coefs(i);
+                        mpc_60 z(ss.str(), 0.0);
+                        coefs2.push_back(z);
+                    }
+                    while (iter < max_iter && !converged)
+                    {
+                        auto result = weierstrass<mpc_60>(coefs2, roots2);
+                        std::vector<mpc_60> new_roots = result.first;
+                        new_delta = result.second;
+                        iter++;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            quadratic = true;
+                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
+                            {
+                                quadratic = false;
+                                break;
+                            }
+                        }
+                        if (quadratic) converged = true;
+                        roots2 = new_roots;
+                        delta = new_delta;
+                    }
+                }
+                else if (prec < 100)
+                {
+                    // Re-do the same calculations with mpc_100
+                    prec = 100; iter = 0;
+                    std::vector<mpc_100> roots2, coefs2;
+                    for (unsigned i = 0; i < this->deg; ++i)
+                    {
+                        roots2.push_back(pow(mpc_100("0.4", "0.9"), i));
+                        delta[i] = 0.0;
+                    }
+                    for (unsigned i = 0; i < this->coefs.size(); ++i)
+                    {
+                        std::stringstream ss;
+                        ss << std::numeric_limits<T>::max_digits10 << this->coefs(i);
+                        mpc_100 z(ss.str(), 0.0);
+                        coefs2.push_back(z);
+                    }
+                    while (iter < max_iter && !converged)
+                    {
+                        auto result = weierstrass<mpc_100>(coefs2, roots2);
+                        std::vector<mpc_100> new_roots = result.first;
+                        new_delta = result.second;
+                        iter++;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            quadratic = true;
+                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
+                            {
+                                quadratic = false;
+                                break;
+                            }
+                        }
+                        if (quadratic) converged = true;
+                        roots2 = new_roots;
+                        delta = new_delta;
+                    }
+                }
+                else if (prec < 200)
+                {
+                    // Re-do the same calculations with mpc_200
+                    prec = 200; iter = 0;
+                    std::vector<mpc_200> roots2, coefs2;
+                    for (unsigned i = 0; i < this->deg; ++i)
+                    {
+                        roots2.push_back(pow(mpc_200("0.4", "0.9"), i));
+                        delta[i] = 0.0;
+                    }
+                    for (unsigned i = 0; i < this->coefs.size(); ++i)
+                    {
+                        std::stringstream ss;
+                        ss << std::numeric_limits<T>::max_digits10 << this->coefs(i);
+                        mpc_200 z(ss.str(), 0.0);
+                        coefs2.push_back(z);
+                    }
+                    while (iter < max_iter && !converged)
+                    {
+                        auto result = weierstrass<mpc_200>(coefs2, roots2);
+                        std::vector<mpc_200> new_roots = result.first;
+                        new_delta = result.second;
+                        iter++;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            quadratic = true;
+                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
+                            {
+                                quadratic = false;
+                                break;
+                            }
+                        }
+                        if (quadratic) converged = true;
+                        roots2 = new_roots;
+                        delta = new_delta;
+                    }
+                }
+                else
+                {
+                    // Give up at this point (don't throw an exception here, 
+                    // as polynomials with singular roots will be encountered)
+                    converged = true;
+                }
+            }
+
+            Matrix<std::complex<T>, Dynamic, 1> final_roots(this->deg);
+            for (unsigned i = 0; i < this->deg; ++i)
+                final_roots(i) = roots[i];
+            return final_roots;
         }
 
     public:
@@ -448,14 +721,51 @@ class Polynomial
             /*
              * Return the derivative of this polynomial.
              */
-            if (this->degree == 0)
+            if (this->deg == 0)
                 return Polynomial();
 
             Matrix<T, Dynamic, 1> dcoefs = (
-                Array<T, Dynamic, 1>::LinSpaced(this->degree, 1, this->degree)
-                * this->coefs.tail(this->degree).array()
+                Array<T, Dynamic, 1>::LinSpaced(this->deg, 1, this->deg)
+                * this->coefs.tail(this->deg).array()
             ).matrix();
             return Polynomial(dcoefs);
+        }
+
+        T leadingCoef() const
+        {
+            /*
+             * Return the leading coefficient of this polynomial.
+             */
+            return this->coefs[this->deg];
+        }
+
+        Matrix<std::complex<T>, Dynamic, 1> roots()
+        {
+            /*
+             * Return all complex roots of the polynomial.  
+             */
+            return this->rootsWeierstrass();
+        }
+
+        Matrix<T, Dynamic, 1> positiveRoots(double imag_tol = 1e-10)
+        {
+            /*
+             * Return all positive roots with imaginary part less than the
+             * given tolerance.
+             */
+            Matrix<std::complex<T>, Dynamic, 1> roots = this->rootsWeierstrass();
+            Matrix<T, Dynamic, 1> pos_roots;
+            unsigned i = 0;
+            for (unsigned j = 0; j < roots.size(); ++j)
+            {
+                if (roots(j).real() > 0 && std::abs(roots(j).imag()) < imag_tol)
+                {
+                    i++;
+                    pos_roots.conservativeResize(i);
+                    pos_roots(i-1) = roots(j).real();
+                }
+            }
+            return pos_roots;
         }
 };
 
