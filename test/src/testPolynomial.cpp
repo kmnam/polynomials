@@ -3,7 +3,7 @@
 #include <iostream>
 #include <Eigen/Dense>
 #include <boost/test/included/unit_test.hpp>
-#include "../../include/polynomial.hpp"
+#include "../../include/polynomial/polynomial.hpp"
 
 /*
  * Test module for the Polynomial class.
@@ -139,4 +139,33 @@ BOOST_AUTO_TEST_CASE(testMul)
     BOOST_TEST(r.coefficients()(6) == 79.0);
     BOOST_TEST(r.coefficients()(7) == 66.0);
     BOOST_TEST(r.coefficients()(8) == 40.0);
+}
+
+BOOST_AUTO_TEST_CASE(testQuadraticRoots)
+{
+    /*
+     * Obtain the roots of a quadratic.
+     */
+    using std::abs;
+    using std::sqrt;
+
+    // Case 1: No repeated roots, both real
+    VectorXd coefs_p(3);
+    coefs_p << 2.0, 3.0, 1.0;    // x^2 + 3x + 2
+    PolyDouble p(coefs_p);
+    Matrix<std::complex<double>, Dynamic, 1> roots_p = p.roots();
+    BOOST_TEST(roots_p.size() == 2);
+    BOOST_TEST((abs(roots_p(0).real() + 2) < 1e-10 || abs(roots_p(0).real() + 1) < 1e-10));
+    BOOST_TEST((abs(roots_p(1).real() + 2) < 1e-10 || abs(roots_p(1).real() + 1) < 1e-10));
+    BOOST_TEST((abs(roots_p(0).imag()) < 1e-10 && abs(roots_p(1).imag()) < 1e-10));
+
+    // Case 2: No repeated roots, both complex
+    VectorXd coefs_q(3);
+    coefs_q << 5.0, 0.0, 1.0;    // x^2 + 5
+    PolyDouble q(coefs_q);
+    Matrix<std::complex<double>, Dynamic, 1> roots_q = q.roots();
+    BOOST_TEST(roots_q.size() == 2);
+    BOOST_TEST((abs(roots_q(0).real()) < 1e-10 && abs(roots_q(1).real()) < 1e-10));
+    BOOST_TEST((abs(roots_q(0).imag() + sqrt(5)) < 1e-10 || abs(roots_q(0).imag() - sqrt(5)) < 1e-10));
+    BOOST_TEST((abs(roots_q(1).imag() + sqrt(5)) < 1e-10 || abs(roots_q(1).imag() - sqrt(5)) < 1e-10));
 }
