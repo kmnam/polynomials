@@ -20,7 +20,7 @@
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     11/24/2019
+ *     11/25/2019
  */
 using namespace Eigen;
 using boost::multiprecision::number;
@@ -111,7 +111,6 @@ std::pair<std::vector<CT>, std::vector<double> > weierstrass(const std::vector<C
     return std::make_pair(new_roots, delta);
 }
 
-
 template <typename T>
 class Polynomial
 {
@@ -159,14 +158,9 @@ class Polynomial
                 T a = std::cos(two_pi * i / pq_deg);
                 T b = std::sin(two_pi * i / pq_deg);
                 std::complex<T> z(a, b);
-                std::cout << i << " " << z << std::endl;
-                std::cout << this->eval(z) << std::endl;
-                std::cout << q.eval(z) << std::endl;
                 values_p(i) = this->eval(z);
                 values_q(i) = q.eval(z);
             }
-            std::cout << values_p << "\n\n";
-            std::cout << values_q << "\n\n";
 
             // Multiply the two vectors of values pointwise
             auto values_pq = (values_p * values_q).matrix();
@@ -188,14 +182,11 @@ class Polynomial
                     inv_dft(i, j) = z; 
                 }
             }
-            std::cout << values_pq << "\n\n";
-            std::cout << inv_dft << "\n\n";
-            std::cout << inv_dft * values_pq << "\n\n";
             Matrix<T, Dynamic, 1> prod_coefs = (inv_dft * values_pq).array().real().matrix();
             return Polynomial(prod_coefs);
         }
 
-        Matrix<std::complex<T>, Dynamic, 1> rootsWeierstrass(unsigned max_iter = 20)
+        Matrix<std::complex<T>, Dynamic, 1> rootsWeierstrass(unsigned max_iter = 1000)
         {
             /*
              * Run Weierstrass' method on the given polynomial, returning the 
@@ -242,7 +233,7 @@ class Polynomial
                         break;
                     }
                 }
-                if (quadratic) converged = true;
+                if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-20) converged = true;
                 roots = new_roots;
                 delta = new_delta;
             }
@@ -266,7 +257,7 @@ class Polynomial
                     for (unsigned i = 0; i < this->coefs.size(); ++i)
                     {
                         std::stringstream ss;
-                        ss << std::numeric_limits<T>::max_digits10 << this->coefs(i);
+                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
                         mpc_30 z(ss.str(), "0.0");
                         coefs2.push_back(z);
                     }
@@ -285,7 +276,7 @@ class Polynomial
                                 break;
                             }
                         }
-                        if (quadratic) converged = true;
+                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-20) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -303,7 +294,7 @@ class Polynomial
                     for (unsigned i = 0; i < this->coefs.size(); ++i)
                     {
                         std::stringstream ss;
-                        ss << std::numeric_limits<T>::max_digits10 << this->coefs(i);
+                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
                         mpc_60 z(ss.str(), 0.0);
                         coefs2.push_back(z);
                     }
@@ -322,7 +313,7 @@ class Polynomial
                                 break;
                             }
                         }
-                        if (quadratic) converged = true;
+                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-20) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -340,7 +331,7 @@ class Polynomial
                     for (unsigned i = 0; i < this->coefs.size(); ++i)
                     {
                         std::stringstream ss;
-                        ss << std::numeric_limits<T>::max_digits10 << this->coefs(i);
+                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
                         mpc_100 z(ss.str(), 0.0);
                         coefs2.push_back(z);
                     }
@@ -359,7 +350,7 @@ class Polynomial
                                 break;
                             }
                         }
-                        if (quadratic) converged = true;
+                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-20) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -377,7 +368,7 @@ class Polynomial
                     for (unsigned i = 0; i < this->coefs.size(); ++i)
                     {
                         std::stringstream ss;
-                        ss << std::numeric_limits<T>::max_digits10 << this->coefs(i);
+                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
                         mpc_200 z(ss.str(), 0.0);
                         coefs2.push_back(z);
                     }
@@ -396,7 +387,7 @@ class Polynomial
                                 break;
                             }
                         }
-                        if (quadratic) converged = true;
+                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-20) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -737,6 +728,25 @@ class Polynomial
              * Return the leading coefficient of this polynomial.
              */
             return this->coefs[this->deg];
+        }
+
+        Polynomial<T> reduce() const
+        {
+            /*
+             * Factor out all powers of x from this polynomial. 
+             */
+            Matrix<T, Dynamic, 1> reduced(this->coefs);
+            while (reduced(0) == 0.0)
+                reduced = reduced.tail(reduced.size() - 1).eval();
+            return Polynomial<T>(reduced);
+        }
+
+        Polynomial<T> monic() const
+        {
+            /*
+             * Factor out the leading coefficient. 
+             */
+            return Polynomial<T>(this->coefs / this->leadingCoef());
         }
 
         Matrix<std::complex<T>, Dynamic, 1> roots()
