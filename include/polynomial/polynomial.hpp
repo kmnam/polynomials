@@ -227,7 +227,7 @@ class Polynomial
                 for (unsigned j = 0; j < this->deg; ++j)
                 {
                     quadratic = true;
-                    if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
+                    if (new_delta[j] >= 0.01 * (delta[j] * delta[j]) || new_delta[j] > 1e-10)
                     {
                         quadratic = false;
                         break;
@@ -270,7 +270,7 @@ class Polynomial
                         for (unsigned j = 0; j < this->deg; ++j)
                         {
                             quadratic = true;
-                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
+                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]) || new_delta[j] >= 1e-10)
                             {
                                 quadratic = false;
                                 break;
@@ -307,7 +307,7 @@ class Polynomial
                         for (unsigned j = 0; j < this->deg; ++j)
                         {
                             quadratic = true;
-                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
+                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]) || new_delta[j] >= 1e-10)
                             {
                                 quadratic = false;
                                 break;
@@ -344,7 +344,7 @@ class Polynomial
                         for (unsigned j = 0; j < this->deg; ++j)
                         {
                             quadratic = true;
-                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
+                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]) || new_delta[j] >= 1e-10)
                             {
                                 quadratic = false;
                                 break;
@@ -381,7 +381,7 @@ class Polynomial
                         for (unsigned j = 0; j < this->deg; ++j)
                         {
                             quadratic = true;
-                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
+                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]) || new_delta[j] >= 1e-10)
                             {
                                 quadratic = false;
                                 break;
