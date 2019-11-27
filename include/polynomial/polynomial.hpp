@@ -186,7 +186,7 @@ class Polynomial
             return Polynomial(prod_coefs);
         }
 
-        Matrix<std::complex<T>, Dynamic, 1> rootsWeierstrass(unsigned max_iter = 1000)
+        Matrix<std::complex<T>, Dynamic, 1> rootsWeierstrass(unsigned max_iter = 5000)
         {
             /*
              * Run Weierstrass' method on the given polynomial, returning the 
