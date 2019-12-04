@@ -20,7 +20,7 @@
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     12/1/2019
+ *     12/3/2019
  */
 using namespace Eigen;
 using boost::multiprecision::number;
@@ -747,6 +747,28 @@ class Polynomial
             }
             return pos_roots;
         }
+
+        Matrix<std::complex<T>, Dynamic, 1> positiveComplexRoots(double imag_tol = 1e-20)
+        {
+            /*
+             * Return all positive roots with imaginary part less than the
+             * given tolerance.
+             */
+            Matrix<std::complex<T>, Dynamic, 1> roots = this->rootsWeierstrass();
+            Matrix<std::complex<T>, Dynamic, 1> pos_roots;
+            unsigned i = 0;
+            for (unsigned j = 0; j < roots.size(); ++j)
+            {
+                if (roots(j).real() > imag_tol && std::abs(roots(j).imag()) < imag_tol)
+                {
+                    i++;
+                    pos_roots.conservativeResize(i);
+                    pos_roots(i-1) = roots(j);
+                }
+            }
+            return pos_roots;
+        }
+
 };
 
 #endif
