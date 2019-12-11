@@ -20,7 +20,7 @@
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     12/3/2019
+ *     12/11/2019
  */
 using namespace Eigen;
 using boost::multiprecision::number;
@@ -58,7 +58,7 @@ Matrix<T, Dynamic, 1> removeTrailingZeros(const Ref<const Matrix<T, Dynamic, 1> 
         if (v(i) == 0)
         {
             size--;
-            w = w.head(size);
+            w = w.head(size).eval();
         }
         else break;
     }
