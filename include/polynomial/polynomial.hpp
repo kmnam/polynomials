@@ -769,6 +769,85 @@ class Polynomial
             return pos_roots;
         }
 
+        T uniquePositiveRoot(double imag_tol = 1e-20, double newton_tol = 1e-20,
+                             unsigned max_newton_iter = 100)
+        {
+            /*
+             * Return the unique positive root (should it exist and be unique)
+             * with imaginary part less than the given tolerance.
+             *
+             * This method should only be used with polynomials for which one
+             * has reason to suspect (e.g., with Descartes' rule of signs or 
+             * Sturm's theorem) that there is indeed only one positive real root.
+             * Failure to identify this one root will result in an exception.
+             */
+            using std::abs;
+
+            Matrix<std::complex<T>, Dynamic, 1> roots = this->positiveComplexRoots(imag_tol);
+
+            // If no root was found, throw an exception
+            if (roots.size() == 0)
+            {
+                std::stringstream ss;
+                ss << "Could not find any roots with imaginary part < " << imag_tol;
+                throw std::runtime_error(ss.str());
+            }
+            // If >1 roots were found, run Newton's method from each root until
+            // only one positive root remains
+            else if (roots.size() > 1)
+            {                                     
+                // Run Newton's method for <= 100 iterations
+                unsigned i = 0;
+                double delta = 2 * newton_tol;
+
+                // Set up a running vector of sharpened roots
+                Matrix<std::complex<T>, Dynamic, 1> new_roots(roots.size());
+                for (unsigned j = 0; j < roots.size(); ++j)
+                    new_roots(j) = roots[j];
+
+                while (i < max_newton_iter && delta > newton_tol)
+                {
+                    // Perform one step of Newton's method for each root ...
+                    delta = 0.0;
+                    for (unsigned j = 0; j < roots.size(); ++j)
+                    {
+                        // Evaluate the polynomial at the root
+                        std::complex<T> f = this->eval(new_roots(j));
+
+                        // Evaluate the derivative of the half-max function at the root
+                        std::complex<T> df = this->diff().eval(new_roots(j));
+
+                        // Perform the Newton step
+                        std::complex<T> next = new_roots(j) - f / df;
+                        if (delta < abs(next - new_roots(j)))
+                            delta = static_cast<double>(abs(next - new_roots(j)));
+                        new_roots(j) = next;
+                    }
+                    i++;
+
+                    // Check if only one of the roots is positive real
+                    if ((new_roots.array().imag().abs() < imag_tol).template cast<int>().sum() == 1)
+                    {
+                        roots = new_roots;
+                        break;
+                    }
+                }
+
+                // If there are still zero or >1 roots, throw an exception
+                if ((new_roots.array().imag().abs() < imag_tol).template cast<int>().sum() != 1)
+                {
+                    std::stringstream ss;
+                    ss << "Could not find any roots with imaginary part < " << imag_tol;
+                    ss << " after sharpening";
+                    throw std::runtime_error(ss.str());
+                }
+                else
+                {
+                    roots = new_roots;
+                }
+            }
+            return roots(0).real();
+        }
 };
 
 #endif
