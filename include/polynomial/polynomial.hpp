@@ -20,7 +20,7 @@
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     12/11/2019
+ *     1/17/2020
  */
 using namespace Eigen;
 using boost::multiprecision::number;
@@ -227,13 +227,13 @@ class Polynomial
                 for (unsigned j = 0; j < this->deg; ++j)
                 {
                     quadratic = true;
-                    if (new_delta[j] >= 0.01 * (delta[j] * delta[j]) || new_delta[j] >= 1e-10)
+                    if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
                     {
                         quadratic = false;
                         break;
                     }
                 }
-                if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
+                if (quadratic && *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
                 roots = new_roots;
                 delta = new_delta;
             }
@@ -268,13 +268,13 @@ class Polynomial
                         for (unsigned j = 0; j < this->deg; ++j)
                         {
                             quadratic = true;
-                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]) || new_delta[j] >= 1e-10)
+                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
                             {
                                 quadratic = false;
                                 break;
                             }
                         }
-                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
+                        if (quadratic && *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -307,13 +307,13 @@ class Polynomial
                         for (unsigned j = 0; j < this->deg; ++j)
                         {
                             quadratic = true;
-                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]) || new_delta[j] >= 1e-10)
+                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
                             {
                                 quadratic = false;
                                 break;
                             }
                         }
-                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
+                        if (quadratic && *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -346,13 +346,13 @@ class Polynomial
                         for (unsigned j = 0; j < this->deg; ++j)
                         {
                             quadratic = true;
-                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]) || new_delta[j] >= 1e-10)
+                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
                             {
                                 quadratic = false;
                                 break;
                             }
                         }
-                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
+                        if (quadratic && *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
