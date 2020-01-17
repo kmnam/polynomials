@@ -108,8 +108,59 @@ std::pair<std::vector<CT>, std::vector<double> > weierstrass(const std::vector<C
         double di = static_cast<double>(roots[j].imag() - new_roots[j].imag());
         delta.push_back(std::sqrt(std::pow(dr, 2.0) + std::pow(di, 2.0)));
     }
+
     return std::make_pair(new_roots, delta);
 }
+
+template <typename CT>
+std::pair<std::vector<CT>, std::vector<double> > aberth(const std::vector<CT>& coefs,
+                                                        const std::vector<CT>& dcoefs,
+                                                        const std::vector<CT>& roots)
+{
+    /*
+     * Perform one iteration of the Aberth-Ehrlich method, given the vector 
+     * of coefficients corresponding to the polynomial and a vector of 
+     * current root approximations.  
+     */
+    // Define a function for evaluating the given polynomial with 
+    // Horner's method
+    std::function<CT(const std::vector<CT>&, CT)> eval = [](const std::vector<CT>& coefs, CT x)
+    {
+        CT y = coefs[coefs.size() - 1];
+        for (int i = coefs.size() - 2; i >= 0; --i)
+        {
+            y *= x;
+            y += coefs[i];
+        }
+        return y;
+    };
+
+    // Perform the Aberth-Ehrlich correction for each root
+    std::vector<CT> new_roots(roots);
+    for (unsigned j = 0; j < roots.size(); ++j)
+    {
+        CT sum = 0.0;
+        for (unsigned k = 0; k < roots.size(); ++k)
+        {
+            if (j != k) sum += (1.0 / (new_roots[j] - new_roots[k]));
+        }
+        CT denom = 1.0 - (eval(coefs, roots[j]) / eval(dcoefs, roots[j])) * sum;
+        CT correction = (eval(coefs, roots[j]) / eval(dcoefs, roots[j])) / denom;
+        new_roots[j] -= correction;
+    }
+
+    // Compute the absolute difference between each old and new root
+    std::vector<double> delta;
+    for (unsigned j = 0; j < roots.size(); ++j)
+    {
+        double dr = static_cast<double>(roots[j].real() - new_roots[j].real());
+        double di = static_cast<double>(roots[j].imag() - new_roots[j].imag());
+        delta.push_back(std::sqrt(std::pow(dr, 2.0) + std::pow(di, 2.0)));
+    }
+    
+    return std::make_pair(new_roots, delta);
+}
+
 
 template <typename T>
 class Polynomial
@@ -186,7 +237,7 @@ class Polynomial
             return Polynomial(prod_coefs);
         }
 
-        Matrix<std::complex<T>, Dynamic, 1> rootsWeierstrass(unsigned max_iter = 5000)
+        Matrix<std::complex<T>, Dynamic, 1> rootsWeierstrass(unsigned max_iter = 10000)
         {
             /*
              * Run Weierstrass' method on the given polynomial, returning the 
@@ -227,13 +278,13 @@ class Polynomial
                 for (unsigned j = 0; j < this->deg; ++j)
                 {
                     quadratic = true;
-                    if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
+                    if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
                     {
                         quadratic = false;
                         break;
                     }
                 }
-                if (quadratic && *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
+                if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
                 roots = new_roots;
                 delta = new_delta;
             }
@@ -249,7 +300,7 @@ class Polynomial
                     std::vector<mpc_60> roots2, coefs2;
                     for (unsigned i = 0; i < this->deg; ++i)
                     {
-                        roots2.push_back(pow(mpc_60("0.4", "0.9"), i));
+                        roots2.push_back(mpc_60(roots[i].real(), roots[i].imag()));
                         delta[i] = 0.0;
                     }
                     for (unsigned i = 0; i < this->coefs.size(); ++i)
@@ -268,13 +319,13 @@ class Polynomial
                         for (unsigned j = 0; j < this->deg; ++j)
                         {
                             quadratic = true;
-                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
+                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
                             {
                                 quadratic = false;
                                 break;
                             }
                         }
-                        if (quadratic && *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
+                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -288,7 +339,7 @@ class Polynomial
                     std::vector<mpc_100> roots2, coefs2;
                     for (unsigned i = 0; i < this->deg; ++i)
                     {
-                        roots2.push_back(pow(mpc_100("0.4", "0.9"), i));
+                        roots2.push_back(mpc_100(roots[i].real(), roots[i].imag()));
                         delta[i] = 0.0;
                     }
                     for (unsigned i = 0; i < this->coefs.size(); ++i)
@@ -307,13 +358,13 @@ class Polynomial
                         for (unsigned j = 0; j < this->deg; ++j)
                         {
                             quadratic = true;
-                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
+                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
                             {
                                 quadratic = false;
                                 break;
                             }
                         }
-                        if (quadratic && *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
+                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -327,7 +378,7 @@ class Polynomial
                     std::vector<mpc_200> roots2, coefs2;
                     for (unsigned i = 0; i < this->deg; ++i)
                     {
-                        roots2.push_back(pow(mpc_200("0.4", "0.9"), i));
+                        roots2.push_back(mpc_200(roots[i].real(), roots[i].imag()));
                         delta[i] = 0.0;
                     }
                     for (unsigned i = 0; i < this->coefs.size(); ++i)
@@ -346,13 +397,13 @@ class Polynomial
                         for (unsigned j = 0; j < this->deg; ++j)
                         {
                             quadratic = true;
-                            if (new_delta[j] >= 0.01 * (delta[j] * delta[j]))
+                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
                             {
                                 quadratic = false;
                                 break;
                             }
                         }
-                        if (quadratic && *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
+                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -375,6 +426,227 @@ class Polynomial
             }
             return final_roots;
         }
+
+        Matrix<std::complex<T>, Dynamic, 1> rootsAberth(unsigned max_iter = 10000)
+        {
+            /*
+             * Run the Aberth-Ehrlich method on the given polynomial, returning the 
+             * roots as type std::complex<T>.
+             */
+            using boost::multiprecision::pow;
+            using boost::multiprecision::abs;
+
+            bool converged = false;
+            bool quadratic = false;
+            unsigned iter = 0;
+
+            // Start with boost::multiprecision::mpc with 30 digits precision
+            std::vector<mpc_30> roots, coefs, dcoefs;
+            Polynomial<T> df = this->diff();
+            MatrixXd dcoefvec = df.coefficients();
+            for (unsigned i = 0; i < this->deg; ++i)
+            {   // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
+                roots.push_back(pow(mpc_30("0.4", "0.9"), i));
+            }
+            for (unsigned i = 0; i < this->coefs.size(); ++i)
+            {
+                std::stringstream ss;
+                ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
+                mpc_30 z(ss.str(), "0.0");
+                coefs.push_back(z);
+            }
+            for (unsigned i = 0; i < dcoefvec.size(); ++i)
+            {
+                std::stringstream ss;
+                ss << std::setprecision(std::numeric_limits<T>::max_digits10) << dcoefvec(i);
+                mpc_30 z(ss.str(), "0.0");
+                dcoefs.push_back(z);
+            }
+            // Run the algorithm until all roots exhibit quadratic convergence
+            // or the desired number of iterations is reached
+            std::vector<double> delta, new_delta;
+            for (unsigned i = 0; i < this->deg; ++i) delta.push_back(0.0);
+            while (iter < max_iter && !converged)
+            {
+                auto result = aberth<mpc_30>(coefs, dcoefs, roots);
+                std::vector<mpc_30> new_roots = result.first;
+                new_delta = result.second;
+                iter++;
+                // Check that the change is less than the square of the 
+                // previous change for each root
+                for (unsigned j = 0; j < this->deg; ++j)
+                {
+                    quadratic = true;
+                    if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
+                    {
+                        quadratic = false;
+                        break;
+                    }
+                }
+                if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
+                roots = new_roots;
+                delta = new_delta;
+            }
+
+            // If not converged, try again with a type with greater precision
+            unsigned prec = 30;
+            while (!converged)
+            {
+                if (prec < 60)
+                {
+                    // Re-do the same calculations with mpc_60
+                    prec = 60; iter = 0;
+                    std::vector<mpc_60> roots2, coefs2, dcoefs2;
+                    for (unsigned i = 0; i < this->deg; ++i)
+                    {
+                        roots2.push_back(mpc_60(roots[i].real(), roots[i].imag()));
+                        delta[i] = 0.0;
+                    }
+                    for (unsigned i = 0; i < this->coefs.size(); ++i)
+                    {
+                        std::stringstream ss;
+                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
+                        mpc_60 z(ss.str(), 0.0);
+                        coefs2.push_back(z);
+                    }
+                    for (unsigned i = 0; i < dcoefvec.size(); ++i)
+                    {
+                        std::stringstream ss;
+                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << dcoefvec(i);
+                        mpc_60 z(ss.str(), "0.0");
+                        dcoefs2.push_back(z);
+                    }
+                    while (iter < max_iter && !converged)
+                    {
+                        auto result = aberth<mpc_60>(coefs2, dcoefs2, roots2);
+                        std::vector<mpc_60> new_roots = result.first;
+                        new_delta = result.second;
+                        iter++;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            quadratic = true;
+                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
+                            {
+                                quadratic = false;
+                                break;
+                            }
+                        }
+                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
+                        roots2 = new_roots;
+                        delta = new_delta;
+                    }
+                    for (unsigned i = 0; i < this->deg; ++i)
+                        roots[i] = static_cast<mpc_30>(roots2[i]);
+                }
+                else if (prec < 100)
+                {
+                    // Re-do the same calculations with mpc_100
+                    prec = 100; iter = 0;
+                    std::vector<mpc_100> roots2, coefs2, dcoefs2;
+                    for (unsigned i = 0; i < this->deg; ++i)
+                    {
+                        roots2.push_back(mpc_100(roots[i].real(), roots[i].imag()));
+                        delta[i] = 0.0;
+                    }
+                    for (unsigned i = 0; i < this->coefs.size(); ++i)
+                    {
+                        std::stringstream ss;
+                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
+                        mpc_100 z(ss.str(), 0.0);
+                        coefs2.push_back(z);
+                    }
+                    for (unsigned i = 0; i < dcoefvec.size(); ++i)
+                    {
+                        std::stringstream ss;
+                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << dcoefvec(i);
+                        mpc_100 z(ss.str(), "0.0");
+                        dcoefs2.push_back(z);
+                    }
+                    while (iter < max_iter && !converged)
+                    {
+                        auto result = aberth<mpc_100>(coefs2, dcoefs2, roots2);
+                        std::vector<mpc_100> new_roots = result.first;
+                        new_delta = result.second;
+                        iter++;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            quadratic = true;
+                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
+                            {
+                                quadratic = false;
+                                break;
+                            }
+                        }
+                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
+                        roots2 = new_roots;
+                        delta = new_delta;
+                    }
+                    for (unsigned i = 0; i < this->deg; ++i)
+                        roots[i] = static_cast<mpc_30>(roots2[i]);
+                }
+                else if (prec < 200)
+                {
+                    // Re-do the same calculations with mpc_200
+                    prec = 200; iter = 0;
+                    std::vector<mpc_200> roots2, coefs2, dcoefs2;
+                    for (unsigned i = 0; i < this->deg; ++i)
+                    {
+                        roots2.push_back(mpc_200(roots[i].real(), roots[i].imag()));
+                        delta[i] = 0.0;
+                    }
+                    for (unsigned i = 0; i < this->coefs.size(); ++i)
+                    {
+                        std::stringstream ss;
+                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
+                        mpc_200 z(ss.str(), 0.0);
+                        coefs2.push_back(z);
+                    }
+                    for (unsigned i = 0; i < dcoefvec.size(); ++i)
+                    {
+                        std::stringstream ss;
+                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << dcoefvec(i);
+                        mpc_200 z(ss.str(), 0.0);
+                        dcoefs2.push_back(z);
+                    }
+                    while (iter < max_iter && !converged)
+                    {
+                        auto result = aberth<mpc_200>(coefs2, dcoefs2, roots2);
+                        std::vector<mpc_200> new_roots = result.first;
+                        new_delta = result.second;
+                        iter++;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            quadratic = true;
+                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
+                            {
+                                quadratic = false;
+                                break;
+                            }
+                        }
+                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-30) converged = true;
+                        roots2 = new_roots;
+                        delta = new_delta;
+                    }
+                    for (unsigned i = 0; i < this->deg; ++i)
+                        roots[i] = static_cast<mpc_30>(roots2[i]);
+                }
+                else
+                {
+                    // Give up at this point (don't throw an exception here, 
+                    // as polynomials with singular roots will be encountered)
+                    converged = true;
+                }
+            }
+
+            Matrix<std::complex<T>, Dynamic, 1> final_roots(this->deg);
+            for (unsigned i = 0; i < this->deg; ++i)
+            {
+                std::complex<T> z(static_cast<T>(roots[i].real()), static_cast<T>(roots[i].imag()));
+                final_roots(i) = z;
+            }
+            return final_roots;
+        }
+
 
     public:
         Polynomial()
@@ -724,7 +996,7 @@ class Polynomial
             /*
              * Return all complex roots of the polynomial.  
              */
-            return this->rootsWeierstrass();
+            return this->rootsAberth();
         }
 
         Matrix<T, Dynamic, 1> positiveRoots(double imag_tol = 1e-20)
@@ -733,7 +1005,7 @@ class Polynomial
              * Return all positive roots with imaginary part less than the
              * given tolerance.
              */
-            Matrix<std::complex<T>, Dynamic, 1> roots = this->rootsWeierstrass();
+            Matrix<std::complex<T>, Dynamic, 1> roots = this->rootsAberth();
             Matrix<T, Dynamic, 1> pos_roots;
             unsigned i = 0;
             for (unsigned j = 0; j < roots.size(); ++j)
@@ -754,7 +1026,7 @@ class Polynomial
              * Return all positive roots with imaginary part less than the
              * given tolerance.
              */
-            Matrix<std::complex<T>, Dynamic, 1> roots = this->rootsWeierstrass();
+            Matrix<std::complex<T>, Dynamic, 1> roots = this->rootsAberth();
             Matrix<std::complex<T>, Dynamic, 1> pos_roots;
             unsigned i = 0;
             for (unsigned j = 0; j < roots.size(); ++j)
