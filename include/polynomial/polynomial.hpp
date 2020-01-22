@@ -237,7 +237,9 @@ class Polynomial
             return Polynomial(prod_coefs);
         }
 
-        Matrix<std::complex<T>, Dynamic, 1> rootsWeierstrass(unsigned max_iter = 10000)
+        Matrix<std::complex<T>, Dynamic, 1> rootsWeierstrass(unsigned max_iter = 10000,
+                                                             double atol = 1e-15,
+                                                             double rtol = 1e-15)
         {
             /*
              * Run Weierstrass' method on the given polynomial, returning the 
@@ -248,6 +250,7 @@ class Polynomial
 
             bool converged = false;
             bool quadratic = false;
+            bool within_tol = false;
             unsigned iter = 0;
 
             // Start with type std::complex<double>
@@ -273,16 +276,26 @@ class Polynomial
                 iter++;
                 // Check that the change is less than the square of the 
                 // previous change for each root
+                quadratic = true;
                 for (unsigned j = 0; j < this->deg; ++j)
                 {
-                    quadratic = true;
                     if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
                     {
                         quadratic = false;
                         break;
                     }
                 }
-                if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-20) converged = true;
+                // Check that the change is within the given tolerances
+                within_tol = true;
+                for (unsigned j = 0; j < this->deg; ++j)
+                {
+                    if (new_delta[j] > atol + rtol * std::abs(roots[j]))
+                    {
+                        within_tol = false;
+                        break;
+                    }
+                }
+                if (quadratic || within_tol) converged = true;
                 roots = new_roots;
                 delta = new_delta;
             }
@@ -314,18 +327,25 @@ class Polynomial
                         std::vector<mpc_30> new_roots = result.first;
                         new_delta = result.second;
                         iter++;
-                        // Check that the change is less than the square of the 
-                        // previous change for each root
+                        quadratic = true;
                         for (unsigned j = 0; j < this->deg; ++j)
                         {
-                            quadratic = true;
                             if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
                             {
                                 quadratic = false;
                                 break;
                             }
                         }
-                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-20) converged = true;
+                        within_tol = true;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
+                            {
+                                within_tol = false;
+                                break;
+                            }
+                        }
+                        if (quadratic || within_tol) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -353,16 +373,25 @@ class Polynomial
                         std::vector<mpc_60> new_roots = result.first;
                         new_delta = result.second;
                         iter++;
+                        quadratic = true;
                         for (unsigned j = 0; j < this->deg; ++j)
                         {
-                            quadratic = true;
                             if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
                             {
                                 quadratic = false;
                                 break;
                             }
                         }
-                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-20) converged = true;
+                        within_tol = true;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
+                            {
+                                within_tol = false;
+                                break;
+                            }
+                        }
+                        if (quadratic || within_tol) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -392,16 +421,25 @@ class Polynomial
                         std::vector<mpc_100> new_roots = result.first;
                         new_delta = result.second;
                         iter++;
+                        quadratic = true;
                         for (unsigned j = 0; j < this->deg; ++j)
                         {
-                            quadratic = true;
                             if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
                             {
                                 quadratic = false;
                                 break;
                             }
                         }
-                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-20) converged = true;
+                        within_tol = true;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
+                            {
+                                within_tol = false;
+                                break;
+                            }
+                        }
+                        if (quadratic || within_tol) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -431,16 +469,25 @@ class Polynomial
                         std::vector<mpc_200> new_roots = result.first;
                         new_delta = result.second;
                         iter++;
+                        quadratic = true;
                         for (unsigned j = 0; j < this->deg; ++j)
                         {
-                            quadratic = true;
                             if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
                             {
                                 quadratic = false;
                                 break;
                             }
                         }
-                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-20) converged = true;
+                        within_tol = true;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
+                            {
+                                within_tol = false;
+                                break;
+                            }
+                        }
+                        if (quadratic || within_tol) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -464,7 +511,9 @@ class Polynomial
             return final_roots;
         }
 
-        Matrix<std::complex<T>, Dynamic, 1> rootsAberth(unsigned max_iter = 10000)
+        Matrix<std::complex<T>, Dynamic, 1> rootsAberth(unsigned max_iter = 10000,
+                                                        double atol = 1e-15,
+                                                        double rtol = 1e-15)
         {
             /*
              * Run the Aberth-Ehrlich method on the given polynomial, returning the 
@@ -475,6 +524,7 @@ class Polynomial
 
             bool converged = false;
             bool quadratic = false;
+            bool within_tol = false;
             unsigned iter = 0;
 
             // Start with type std::complex<double>
@@ -515,7 +565,17 @@ class Polynomial
                         break;
                     }
                 }
-                if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-20) converged = true;
+                // Check that the change is within the given tolerances
+                within_tol = true;
+                for (unsigned j = 0; j < this->deg; ++j)
+                {
+                    if (new_delta[j] > atol + rtol * std::abs(roots[j]))
+                    {
+                        within_tol = false;
+                        break;
+                    }
+                }
+                if (quadratic || within_tol) converged = true;
                 roots = new_roots;
                 delta = new_delta;
             }
@@ -554,8 +614,6 @@ class Polynomial
                         std::vector<mpc_30> new_roots = result.first;
                         new_delta = result.second;
                         iter++;
-                        // Check that the change is less than the square of the 
-                        // previous change for each root
                         for (unsigned j = 0; j < this->deg; ++j)
                         {
                             quadratic = true;
@@ -565,7 +623,16 @@ class Polynomial
                                 break;
                             }
                         }
-                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-20) converged = true;
+                        within_tol = true;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
+                            {
+                                within_tol = false;
+                                break;
+                            }
+                        }
+                        if (quadratic || within_tol) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -609,7 +676,16 @@ class Polynomial
                                 break;
                             }
                         }
-                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-20) converged = true;
+                        within_tol = true;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
+                            {
+                                within_tol = false;
+                                break;
+                            }
+                        }
+                        if (quadratic || within_tol) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -655,7 +731,16 @@ class Polynomial
                                 break;
                             }
                         }
-                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-20) converged = true;
+                        within_tol = true;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
+                            {
+                                within_tol = false;
+                                break;
+                            }
+                        }
+                        if (quadratic || within_tol) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
@@ -701,7 +786,16 @@ class Polynomial
                                 break;
                             }
                         }
-                        if (quadratic || *std::max_element(new_delta.begin(), new_delta.end()) < 1e-20) converged = true;
+                        within_tol = true;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
+                            {
+                                within_tol = false;
+                                break;
+                            }
+                        }
+                        if (quadratic || within_tol) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
                     }
