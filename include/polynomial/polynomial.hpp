@@ -20,7 +20,7 @@
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     1/22/2020
+ *     2/4/2020
  */
 using namespace Eigen;
 using boost::multiprecision::number;
@@ -237,9 +237,9 @@ class Polynomial
             return Polynomial(prod_coefs);
         }
 
-        Matrix<std::complex<T>, Dynamic, 1> rootsWeierstrass(unsigned max_iter = 10000,
-                                                             double atol = 1e-15,
-                                                             double rtol = 1e-15)
+        Matrix<std::complex<T>, Dynamic, 1> rootsWeierstrass(unsigned max_iter,
+                                                             double atol,
+                                                             double rtol)
         {
             /*
              * Run Weierstrass' method on the given polynomial, returning the 
@@ -511,9 +511,9 @@ class Polynomial
             return final_roots;
         }
 
-        Matrix<std::complex<T>, Dynamic, 1> rootsAberth(unsigned max_iter = 10000,
-                                                        double atol = 1e-15,
-                                                        double rtol = 1e-15)
+        Matrix<std::complex<T>, Dynamic, 1> rootsAberth(unsigned max_iter,
+                                                        double atol,
+                                                        double rtol)
         {
             /*
              * Run the Aberth-Ehrlich method on the given polynomial, returning the 
@@ -1163,21 +1163,26 @@ class Polynomial
             return Polynomial<T>(this->coefs / this->leadingCoef());
         }
 
-        Matrix<std::complex<T>, Dynamic, 1> roots()
+        Matrix<std::complex<T>, Dynamic, 1> roots(unsigned max_iter = 10000,
+                                                  double atol = 1e-15,
+                                                  double rtol = 1e-15)
         {
             /*
              * Return all complex roots of the polynomial.  
              */
-            return this->rootsAberth();
+            return this->rootsAberth(max_iter, atol, rtol);
         }
 
-        Matrix<T, Dynamic, 1> positiveRoots(double imag_tol = 1e-20)
+        Matrix<T, Dynamic, 1> positiveRoots(unsigned max_iter = 10000,
+                                            double atol = 1e-15,
+                                            double rtol = 1e-15, 
+                                            double imag_tol = 1e-15)
         {
             /*
              * Return all positive roots with imaginary part less than the
              * given tolerance.
              */
-            Matrix<std::complex<T>, Dynamic, 1> roots = this->rootsAberth();
+            Matrix<std::complex<T>, Dynamic, 1> roots = this->rootsAberth(max_iter, atol, rtol);
             Matrix<T, Dynamic, 1> pos_roots;
             unsigned i = 0;
             for (unsigned j = 0; j < roots.size(); ++j)
@@ -1192,13 +1197,16 @@ class Polynomial
             return pos_roots;
         }
 
-        Matrix<std::complex<T>, Dynamic, 1> positiveComplexRoots(double imag_tol = 1e-20)
+        Matrix<std::complex<T>, Dynamic, 1> positiveComplexRoots(unsigned max_iter = 10000,
+                                                                 double atol = 1e-15,
+                                                                 double rtol = 1e-15, 
+                                                                 double imag_tol = 1e-15)
         {
             /*
              * Return all positive roots with imaginary part less than the
              * given tolerance.
              */
-            Matrix<std::complex<T>, Dynamic, 1> roots = this->rootsAberth();
+            Matrix<std::complex<T>, Dynamic, 1> roots = this->rootsAberth(max_iter, atol, rtol);
             Matrix<std::complex<T>, Dynamic, 1> pos_roots;
             unsigned i = 0;
             for (unsigned j = 0; j < roots.size(); ++j)
