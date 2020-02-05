@@ -66,6 +66,51 @@ Matrix<T, Dynamic, 1> removeTrailingZeros(const Ref<const Matrix<T, Dynamic, 1> 
 }
 
 template <typename CT>
+CT horner(const std::vector<CT>& coefs, CT x)
+{
+    /*
+     * Perform Horner's method, given the vector of coefficients corresponding
+     * to the polynomial and a value at which the polynomial is to be evaluated. 
+     */ 
+    CT y = coefs[coefs.size() - 1];
+    for (int i = coefs.size() - 2; i >= 0; --i)
+    {
+        y *= x;
+        y += coefs[i];
+    }
+    return y;
+}
+
+template <typename CT>
+std::pair<std::vector<CT>, std::vector<double> > newton(const std::vector<CT>& coefs,
+                                                        const std::vector<CT>& dcoefs,
+                                                        const std::vector<CT>& roots)
+{
+    /*
+     * Perform one iteration of Newton's method, given the vector of 
+     * coefficients corresponding to the polynomial, its derivative, and 
+     * a vector of current root approximations. 
+     */
+    // Perform the Newton correction for each root
+    std::vector<CT> new_roots(roots);
+    for (unsigned j = 0; j < roots.size(); ++j)
+    {
+        new_roots[j] -= (horner<CT>(coefs, roots[j]) / horner<CT>(dcoefs, roots[j]));
+    }
+
+    // Compute the absolute difference between each old and new root
+    std::vector<double> delta;
+    for (unsigned j = 0; j < roots.size(); ++j)
+    {
+        double dr = static_cast<double>(roots[j].real() - new_roots[j].real());
+        double di = static_cast<double>(roots[j].imag() - new_roots[j].imag());
+        delta.push_back(std::sqrt(std::pow(dr, 2.0) + std::pow(di, 2.0)));
+    }
+
+    return std::make_pair(new_roots, delta);
+}
+
+template <typename CT>
 std::pair<std::vector<CT>, std::vector<double> > weierstrass(const std::vector<CT>& coefs,
                                                              const std::vector<CT>& roots)
 {
@@ -74,19 +119,6 @@ std::pair<std::vector<CT>, std::vector<double> > weierstrass(const std::vector<C
      * of coefficients corresponding to the polynomial and a vector of 
      * current root approximations.  
      */
-    // Define a function for evaluating the given polynomial with 
-    // Horner's method
-    std::function<CT(CT)> eval = [coefs](CT x)
-    {
-        CT y = coefs[coefs.size() - 1];
-        for (int i = coefs.size() - 2; i >= 0; --i)
-        {
-            y *= x;
-            y += coefs[i];
-        }
-        return y;
-    };
-
     // Perform the Weierstrass correction for each root
     std::vector<CT> new_roots(roots);
     for (unsigned j = 0; j < roots.size(); ++j)
@@ -96,7 +128,7 @@ std::pair<std::vector<CT>, std::vector<double> > weierstrass(const std::vector<C
         {
             if (j != k) denom *= (new_roots[j] - new_roots[k]);
         }
-        CT correction = -eval(new_roots[j]) / denom;
+        CT correction = -horner<CT>(coefs, new_roots[j]) / denom;
         new_roots[j] += correction;
     }
 
@@ -122,19 +154,6 @@ std::pair<std::vector<CT>, std::vector<double> > aberth(const std::vector<CT>& c
      * of coefficients corresponding to the polynomial and a vector of 
      * current root approximations.  
      */
-    // Define a function for evaluating the given polynomial with 
-    // Horner's method
-    std::function<CT(const std::vector<CT>&, CT)> eval = [](const std::vector<CT>& coefs, CT x)
-    {
-        CT y = coefs[coefs.size() - 1];
-        for (int i = coefs.size() - 2; i >= 0; --i)
-        {
-            y *= x;
-            y += coefs[i];
-        }
-        return y;
-    };
-
     // Perform the Aberth-Ehrlich correction for each root
     std::vector<CT> new_roots(roots);
     for (unsigned j = 0; j < roots.size(); ++j)
@@ -144,8 +163,9 @@ std::pair<std::vector<CT>, std::vector<double> > aberth(const std::vector<CT>& c
         {
             if (j != k) sum += (1.0 / (new_roots[j] - new_roots[k]));
         }
-        CT denom = 1.0 - (eval(coefs, roots[j]) / eval(dcoefs, roots[j])) * sum;
-        CT correction = (eval(coefs, roots[j]) / eval(dcoefs, roots[j])) / denom;
+        CT val = horner<CT>(coefs, roots[j]) / horner<CT>(dcoefs, roots[j]);
+        CT denom = 1.0 - val * sum;
+        CT correction = val / denom;
         new_roots[j] -= correction;
     }
 
