@@ -276,8 +276,8 @@ class Polynomial
             // Start with type std::complex<double>
             std::vector<std::complex<double> > roots, coefs;
             for (unsigned i = 0; i < this->deg; ++i)
-            {   // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
-                roots.push_back(std::pow(std::complex<double>(0.4, 0.9), i));
+            {   // Initialize the roots to (0.44 + 0.99 i)^p, for p = 0, ..., d - 1
+                roots.push_back(std::pow(std::complex<double>(0.44, 0.99), i));
             }
             for (unsigned i = 0; i < this->coefs.size(); ++i)
             {
@@ -552,8 +552,8 @@ class Polynomial
             VectorXd dcoefvec = this->diff().coefficients();
             std::vector<std::complex<double> > roots, coefs, dcoefs;
             for (unsigned i = 0; i < this->deg; ++i)
-            {   // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
-                roots.push_back(std::pow(std::complex<double>(0.4, 0.9), i));
+            {   // Initialize the roots to (0.44 + 0.99 i)^p, for p = 0, ..., d - 1
+                roots.push_back(std::pow(std::complex<double>(0.44, 0.99), i));
             }
             for (unsigned i = 0; i < this->coefs.size(); ++i)
             {
