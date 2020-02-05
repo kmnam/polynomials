@@ -533,7 +533,8 @@ class Polynomial
 
         Matrix<std::complex<T>, Dynamic, 1> rootsAberth(unsigned max_iter,
                                                         double atol,
-                                                        double rtol)
+                                                        double rtol,
+                                                        unsigned sharpen_iter = 20)
         {
             /*
              * Run the Aberth-Ehrlich method on the given polynomial, returning the 
@@ -599,6 +600,12 @@ class Polynomial
                 roots = new_roots;
                 delta = new_delta;
             }
+            // Sharpen each root for the given number of iterations 
+            for (unsigned i = 0; i < sharpen_iter; ++i)
+            {
+                auto result = newton<std::complex<double> >(coefs, dcoefs, roots);
+                roots = result.first;
+            }
 
             // If not converged, try again with a type with greater precision
             unsigned prec = 17;
@@ -656,6 +663,13 @@ class Polynomial
                         roots2 = new_roots;
                         delta = new_delta;
                     }
+                    for (unsigned i = 0; i < sharpen_iter; ++i)
+                    {
+                        auto result = newton<mpc_30>(coefs2, dcoefs2, roots2);
+                        roots2 = result.first;
+                    }
+                    for (unsigned i = 0; i < this->deg; ++i)
+                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
                 }
                 else if (prec < 60)
                 {
@@ -708,6 +722,11 @@ class Polynomial
                         if (quadratic || within_tol) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
+                    }
+                    for (unsigned i = 0; i < sharpen_iter; ++i)
+                    {
+                        auto result = newton<mpc_60>(coefs2, dcoefs2, roots2);
+                        roots2 = result.first;
                     }
                     for (unsigned i = 0; i < this->deg; ++i)
                         roots[i] = static_cast<std::complex<double> >(roots2[i]);
@@ -764,6 +783,11 @@ class Polynomial
                         roots2 = new_roots;
                         delta = new_delta;
                     }
+                    for (unsigned i = 0; i < sharpen_iter; ++i)
+                    {
+                        auto result = newton<mpc_100>(coefs2, dcoefs2, roots2);
+                        roots2 = result.first;
+                    }
                     for (unsigned i = 0; i < this->deg; ++i)
                         roots[i] = static_cast<std::complex<double> >(roots2[i]);
                 }
@@ -818,6 +842,11 @@ class Polynomial
                         if (quadratic || within_tol) converged = true;
                         roots2 = new_roots;
                         delta = new_delta;
+                    }
+                    for (unsigned i = 0; i < sharpen_iter; ++i)
+                    {
+                        auto result = newton<mpc_200>(coefs2, dcoefs2, roots2);
+                        roots2 = result.first;
                     }
                     for (unsigned i = 0; i < this->deg; ++i)
                         roots[i] = static_cast<std::complex<double> >(roots2[i]);
