@@ -133,9 +133,9 @@ std::pair<std::vector<CT>, std::vector<double> > weierstrass(const std::vector<C
         CT denom = 1.0;
         for (unsigned k = 0; k < roots.size(); ++k)
         {
-            if (j != k) denom *= (new_roots[j] - new_roots[k]);
+            if (j != k) denom *= (roots[j] - roots[k]);
         }
-        CT correction = -horner<CT>(coefs, new_roots[j]) / denom;
+        CT correction = -horner<CT>(coefs, roots[j]) / denom;
         new_roots[j] += correction;
     }
 
@@ -168,10 +168,10 @@ std::pair<std::vector<CT>, std::vector<double> > aberth(const std::vector<CT>& c
         CT sum = 0.0;
         for (unsigned k = 0; k < roots.size(); ++k)
         {
-            if (j != k) sum += (1.0 / (new_roots[j] - new_roots[k]));
+            if (j != k) sum += (1.0 / (roots[j] - roots[k]));
         }
         CT val = horner<CT>(coefs, roots[j]) / horner<CT>(dcoefs, roots[j]);
-        CT denom = 1.0 - val * sum;
+        CT denom = 1.0 - (val * sum);
         CT correction = val / denom;
         new_roots[j] -= correction;
     }
@@ -210,12 +210,11 @@ std::vector<std::complex<double> > biniInitialize(const Ref<const VectorXd>& coe
     using std::cos;
     const double two_pi = 2 * std::acos(-1.0); 
 
-    // Find the convex hull of the vertices (i, log|f_i|)
+    // Find the upper convex hull of the vertices (i, log|f_i|)
     std::vector<Point_2> points, hull; 
     for (unsigned i = 0; i < coefs.size(); ++i)
     {
-        if (coefs(i) > 0)
-            points.push_back(Point_2(i, log(abs(coefs(i)))));
+        points.push_back(Point_2(i, log(abs(coefs(i)))));
     }
     // TODO Try other convex hull algorithms (Graham-Andrew, etc.)
     CGAL::convex_hull_2(points.begin(), points.end(), std::back_inserter(hull));
@@ -224,7 +223,8 @@ std::vector<std::complex<double> > biniInitialize(const Ref<const VectorXd>& coe
     std::vector<double> hull_x;
     for (auto&& p : hull)
     {
-        hull_x.push_back(static_cast<int>(CGAL::to_double(p.x())));
+        if (!std::isinf(CGAL::to_double(p.y())))
+            hull_x.push_back(static_cast<int>(CGAL::to_double(p.x())));
     }
     std::sort(hull_x.begin(), hull_x.end());
 
