@@ -276,8 +276,8 @@ class Polynomial
             // Start with type std::complex<double>
             std::vector<std::complex<double> > roots, coefs;
             for (unsigned i = 0; i < this->deg; ++i)
-            {   // Initialize the roots to (0.44 + 0.99 i)^p, for p = 0, ..., d - 1
-                roots.push_back(std::pow(std::complex<double>(0.44, 0.99), i));
+            {   // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
+                roots.push_back(std::pow(std::complex<double>(0.4, 0.9), i));
             }
             for (unsigned i = 0; i < this->coefs.size(); ++i)
             {
@@ -534,7 +534,9 @@ class Polynomial
         Matrix<std::complex<T>, Dynamic, 1> rootsAberth(unsigned max_iter,
                                                         double atol,
                                                         double rtol,
-                                                        unsigned sharpen_iter = 20)
+                                                        unsigned sharpen_iter = 20,
+                                                        double init_real = 0.4,
+                                                        double init_imag = 0.9)
         {
             /*
              * Run the Aberth-Ehrlich method on the given polynomial, returning the 
@@ -552,8 +554,8 @@ class Polynomial
             VectorXd dcoefvec = this->diff().coefficients();
             std::vector<std::complex<double> > roots, coefs, dcoefs;
             for (unsigned i = 0; i < this->deg; ++i)
-            {   // Initialize the roots to (0.44 + 0.99 i)^p, for p = 0, ..., d - 1
-                roots.push_back(std::pow(std::complex<double>(0.44, 0.99), i));
+            {   // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
+                roots.push_back(std::pow(std::complex<double>(init_real, init_imag), i));
             }
             for (unsigned i = 0; i < this->coefs.size(); ++i)
             {
@@ -619,6 +621,7 @@ class Polynomial
                     for (unsigned i = 0; i < this->deg; ++i)
                     {
                         roots2.push_back(mpc_30(roots[i].real(), roots[i].imag()));
+                        //roots2.push_back(pow(mpc_30(init_real, init_imag), i));
                         delta[i] = 0.0;
                     }
                     for (unsigned i = 0; i < this->coefs.size(); ++i)
@@ -679,6 +682,7 @@ class Polynomial
                     for (unsigned i = 0; i < this->deg; ++i)
                     {
                         roots2.push_back(mpc_60(roots[i].real(), roots[i].imag()));
+                        //roots2.push_back(pow(mpc_60(init_real, init_imag), i));
                         delta[i] = 0.0;
                     }
                     for (unsigned i = 0; i < this->coefs.size(); ++i)
@@ -739,6 +743,7 @@ class Polynomial
                     for (unsigned i = 0; i < this->deg; ++i)
                     {
                         roots2.push_back(mpc_100(roots[i].real(), roots[i].imag()));
+                        //roots2.push_back(pow(mpc_100(init_real, init_imag), i));
                         delta[i] = 0.0;
                     }
                     for (unsigned i = 0; i < this->coefs.size(); ++i)
@@ -799,6 +804,7 @@ class Polynomial
                     for (unsigned i = 0; i < this->deg; ++i)
                     {
                         roots2.push_back(mpc_200(roots[i].real(), roots[i].imag()));
+                        //roots2.push_back(pow(mpc_200(init_real, init_imag), i));
                         delta[i] = 0.0;
                     }
                     for (unsigned i = 0; i < this->coefs.size(); ++i)
@@ -1214,24 +1220,30 @@ class Polynomial
 
         Matrix<std::complex<T>, Dynamic, 1> roots(unsigned max_iter = 10000,
                                                   double atol = 1e-15,
-                                                  double rtol = 1e-15)
+                                                  double rtol = 1e-15,
+                                                  unsigned sharpen_iter = 20,
+                                                  double init_real = 0.4,
+                                                  double init_imag = 0.9)
         {
             /*
              * Return all complex roots of the polynomial.  
              */
-            return this->rootsAberth(max_iter, atol, rtol);
+            return this->rootsAberth(max_iter, atol, rtol, sharpen_iter, init_real, init_imag);
         }
 
         Matrix<T, Dynamic, 1> positiveRoots(unsigned max_iter = 10000,
                                             double atol = 1e-15,
                                             double rtol = 1e-15, 
-                                            double imag_tol = 1e-15)
+                                            double imag_tol = 1e-15,
+                                            unsigned sharpen_iter = 20,
+                                            double init_real = 0.4,
+                                            double init_imag = 0.9)
         {
             /*
              * Return all positive roots with imaginary part less than the
              * given tolerance.
              */
-            Matrix<std::complex<T>, Dynamic, 1> roots = this->rootsAberth(max_iter, atol, rtol);
+            Matrix<std::complex<T>, Dynamic, 1> roots = this->rootsAberth(max_iter, atol, rtol, sharpen_iter, init_real, init_imag);
             Matrix<T, Dynamic, 1> pos_roots;
             unsigned i = 0;
             for (unsigned j = 0; j < roots.size(); ++j)
