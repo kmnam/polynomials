@@ -151,7 +151,7 @@ BOOST_AUTO_TEST_CASE(testQuadraticRoots)
 
     // Case 1: No repeated roots, both real
     VectorXd coefs_p(3);
-    coefs_p << 2.0, 3.0, 1.0;    // x^2 + 3x + 2
+    coefs_p << 2.0, 3.0, 1.0;    // x^2 + 3x + 2 (roots -2, -1)
     PolyDouble p(coefs_p);
     Matrix<std::complex<double>, Dynamic, 1> roots_p = p.roots();
     BOOST_TEST(roots_p.size() == 2);
@@ -161,9 +161,40 @@ BOOST_AUTO_TEST_CASE(testQuadraticRoots)
 
     // Case 2: No repeated roots, both complex
     VectorXd coefs_q(3);
-    coefs_q << 5.0, 0.0, 1.0;    // x^2 + 5
+    coefs_q << 5.0, 0.0, 1.0;    // x^2 + 5 (roots -sqrt(5) * i, sqrt(5) * i) 
     PolyDouble q(coefs_q);
     Matrix<std::complex<double>, Dynamic, 1> roots_q = q.roots();
+    BOOST_TEST(roots_q.size() == 2);
+    BOOST_TEST((abs(roots_q(0).real()) < 1e-10 && abs(roots_q(1).real()) < 1e-10));
+    BOOST_TEST((abs(roots_q(0).imag() + sqrt(5)) < 1e-10 || abs(roots_q(0).imag() - sqrt(5)) < 1e-10));
+    BOOST_TEST((abs(roots_q(1).imag() + sqrt(5)) < 1e-10 || abs(roots_q(1).imag() - sqrt(5)) < 1e-10));
+}
+
+BOOST_AUTO_TEST_CASE(testQuadraticBiniInitialize)
+{
+    /*
+     * Test Bini's initialization on quadratic polynomials. 
+     */
+    boost::random::mt19937 rng(1234567890);
+    boost::random::uniform_real_distribution<> dist(-std::acos(-1.0), std::acos(-1.0));
+
+    // Case 1: No repeated roots, both real
+    VectorXd coefs_p(3);
+    coefs_p << 2.0, 3.0, 1.0;    // x^2 + 3x + 2 (roots -2, -1)
+    PolyDouble p(coefs_p);
+    std::vector<std::complex<double> > inits = biniInitialize(coefs_p, rng, dist);
+    Matrix<std::complex<double>, Dynamic, 1> roots_p = p.roots(Aberth, 100, 1e-15, 1e-15, 20, inits);
+    BOOST_TEST(roots_p.size() == 2);
+    BOOST_TEST((abs(roots_p(0).real() + 2) < 1e-10 || abs(roots_p(0).real() + 1) < 1e-10));
+    BOOST_TEST((abs(roots_p(1).real() + 2) < 1e-10 || abs(roots_p(1).real() + 1) < 1e-10));
+    BOOST_TEST((abs(roots_p(0).imag()) < 1e-10 && abs(roots_p(1).imag()) < 1e-10));
+
+    // Case 2: No repeated roots, both complex
+    VectorXd coefs_q(3);
+    coefs_q << 5.0, 0.0, 1.0;    // x^2 + 5 (roots -sqrt(5) * i, sqrt(5) * i) 
+    PolyDouble q(coefs_q);
+    inits = biniInitialize(coefs_q, rng, dist);
+    Matrix<std::complex<double>, Dynamic, 1> roots_q = q.roots(Aberth, 100, 1e-15, 1e-15, 20, inits);
     BOOST_TEST(roots_q.size() == 2);
     BOOST_TEST((abs(roots_q(0).real()) < 1e-10 && abs(roots_q(1).real()) < 1e-10));
     BOOST_TEST((abs(roots_q(0).imag() + sqrt(5)) < 1e-10 || abs(roots_q(0).imag() - sqrt(5)) < 1e-10));
