@@ -204,6 +204,7 @@ std::vector<std::complex<double> > biniInitialize(const Ref<const VectorXd>& coe
      * for the given vector of polynomial coefficients. 
      */
     using std::abs;
+    using std::log;
     using std::pow;
     using std::sin;
     using std::cos;
@@ -213,7 +214,8 @@ std::vector<std::complex<double> > biniInitialize(const Ref<const VectorXd>& coe
     std::vector<Point_2> points, hull; 
     for (unsigned i = 0; i < coefs.size(); ++i)
     {
-        points.push_back(Point_2(i, abs(coefs(i))));
+        if (coefs(i) > 0)
+            points.push_back(Point_2(i, log(abs(coefs(i)))));
     }
     // TODO Try other convex hull algorithms (Graham-Andrew, etc.)
     CGAL::convex_hull_2(points.begin(), points.end(), std::back_inserter(hull));
@@ -236,7 +238,7 @@ std::vector<std::complex<double> > biniInitialize(const Ref<const VectorXd>& coe
     }
 
     // Compute initial root approximations
-    // TODO Check that these approximations are correct on small examples
+    // TODO Check that these approximations are correct (how?) on small examples
     int n = coefs.size() - 1;
     std::vector<std::complex<double> > inits; 
     for (unsigned i = 0; i < hull_x.size() - 1; ++i)
@@ -331,8 +333,7 @@ class Polynomial
         Matrix<std::complex<T>, Dynamic, 1> rootsWeierstrass(unsigned max_iter,
                                                              double atol,
                                                              double rtol,
-                                                             double init_real = 0.4,
-                                                             double init_imag = 0.9)
+                                                             std::vector<std::complex<double> > inits = {})
         {
             /*
              * Run Weierstrass' method on the given polynomial, returning the 
@@ -346,11 +347,24 @@ class Polynomial
             bool within_tol = false;
             unsigned iter = 0;
 
+            // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
+            // if initializations were not specified 
+            if (inits.size() == 0)
+            {
+                for (unsigned i = 0; i < this->deg; ++i)
+                    inits.push_back(std::pow(std::complex<double>(0.4, 0.9), i));
+            }
+            // Throw exception if improper number of initializations were specified
+            else if (inits.size() != this->deg)
+            {
+                throw std::runtime_error("Invalid number of initial roots specified");
+            }
+
             // Start with type std::complex<double>
             std::vector<std::complex<double> > roots, coefs;
             for (unsigned i = 0; i < this->deg; ++i)
-            {   // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
-                roots.push_back(std::pow(std::complex<double>(init_real, init_imag), i));
+            {
+                roots.push_back(inits[i]);
             }
             for (unsigned i = 0; i < this->coefs.size(); ++i)
             {
@@ -610,8 +624,7 @@ class Polynomial
                                                         double atol,
                                                         double rtol,
                                                         unsigned sharpen_iter = 20,
-                                                        double init_real = 0.4,
-                                                        double init_imag = 0.9)
+                                                        std::vector<std::complex<double> > inits = {})
         {
             /*
              * Run the Aberth-Ehrlich method on the given polynomial, returning the 
@@ -625,12 +638,25 @@ class Polynomial
             bool within_tol = false;
             unsigned iter = 0;
 
+            // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
+            // if initializations were not specified 
+            if (inits.size() == 0)
+            {
+                for (unsigned i = 0; i < this->deg; ++i)
+                    inits.push_back(std::pow(std::complex<double>(0.4, 0.9), i));
+            }
+            // Throw exception if improper number of initializations were specified
+            else if (inits.size() != this->deg)
+            {
+                throw std::runtime_error("Invalid number of initial roots specified");
+            }
+
             // Start with type std::complex<double>
             VectorXd dcoefvec = this->diff().coefficients();
             std::vector<std::complex<double> > roots, coefs, dcoefs;
             for (unsigned i = 0; i < this->deg; ++i)
-            {   // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
-                roots.push_back(std::pow(std::complex<double>(init_real, init_imag), i));
+            {
+                roots.push_back(inits[i]);
             }
             for (unsigned i = 0; i < this->coefs.size(); ++i)
             {
@@ -756,7 +782,6 @@ class Polynomial
                     for (unsigned i = 0; i < this->deg; ++i)
                     {
                         roots2.push_back(mpc_60(roots[i].real(), roots[i].imag()));
-                        //roots2.push_back(pow(mpc_60(init_real, init_imag), i));
                         delta[i] = 0.0;
                     }
                     for (unsigned i = 0; i < this->coefs.size(); ++i)
@@ -817,7 +842,6 @@ class Polynomial
                     for (unsigned i = 0; i < this->deg; ++i)
                     {
                         roots2.push_back(mpc_100(roots[i].real(), roots[i].imag()));
-                        //roots2.push_back(pow(mpc_100(init_real, init_imag), i));
                         delta[i] = 0.0;
                     }
                     for (unsigned i = 0; i < this->coefs.size(); ++i)
@@ -878,7 +902,6 @@ class Polynomial
                     for (unsigned i = 0; i < this->deg; ++i)
                     {
                         roots2.push_back(mpc_200(roots[i].real(), roots[i].imag()));
-                        //roots2.push_back(pow(mpc_200(init_real, init_imag), i));
                         delta[i] = 0.0;
                     }
                     for (unsigned i = 0; i < this->coefs.size(); ++i)
@@ -1297,16 +1320,15 @@ class Polynomial
                                                   double atol = 1e-15,
                                                   double rtol = 1e-15,
                                                   unsigned sharpen_iter = 20,
-                                                  double init_real = 0.4,
-                                                  double init_imag = 0.9)
+                                                  std::vector<std::complex<double> > inits = {})
         {
             /*
              * Return all complex roots of the polynomial.  
              */
             if (method == Aberth)
-                return this->rootsAberth(max_iter, atol, rtol, sharpen_iter, init_real, init_imag);
+                return this->rootsAberth(max_iter, atol, rtol, sharpen_iter, inits);
             else
-                return this->rootsWeierstrass(max_iter, atol, rtol, init_real, init_imag);
+                return this->rootsWeierstrass(max_iter, atol, rtol, inits);
         }
 
         Matrix<T, Dynamic, 1> positiveRoots(SolveMethod method = Aberth, 
@@ -1315,8 +1337,7 @@ class Polynomial
                                             double rtol = 1e-15, 
                                             double imag_tol = 1e-15,
                                             unsigned sharpen_iter = 20,
-                                            double init_real = 0.4,
-                                            double init_imag = 0.9)
+                                            std::vector<std::complex<double> > inits = {})
         {
             /*
              * Return all positive roots with imaginary part less than the
@@ -1324,9 +1345,9 @@ class Polynomial
              */
             Matrix<std::complex<T>, Dynamic, 1> roots;
             if (method == Aberth)
-                roots = this->rootsAberth(max_iter, atol, rtol, sharpen_iter, init_real, init_imag);
+                roots = this->rootsAberth(max_iter, atol, rtol, sharpen_iter, inits);
             else
-                roots = this->rootsWeierstrass(max_iter, atol, rtol, init_real, init_imag);
+                roots = this->rootsWeierstrass(max_iter, atol, rtol, inits);
             Matrix<T, Dynamic, 1> pos_roots;
             unsigned i = 0;
             for (unsigned j = 0; j < roots.size(); ++j)
