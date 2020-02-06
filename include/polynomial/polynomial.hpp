@@ -5,6 +5,7 @@
 #include <ostream>
 #include <string>
 #include <vector>
+#include <algorithm>
 #include <stdexcept>
 #include <complex>
 #include <limits>
@@ -187,6 +188,70 @@ std::pair<std::vector<CT>, std::vector<double> > aberth(const std::vector<CT>& c
     return std::make_pair(new_roots, delta);
 }
 
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <CGAL/convex_hull_2.h>
+#include <CGAL/ch_graham_andrew.h>
+
+typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
+typedef K::Point_2                                          Point_2; 
+
+std::vector<std::complex<double> > biniInitialize(const Ref<const VectorXd>& coefs,
+                                                  boost::random::mt19937& rng,
+                                                  boost::random::uniform_real_distribution<double>& dist)
+{
+    /*
+     * Use Bini's initialization to yield a set of initial complex roots 
+     * for the given vector of polynomial coefficients. 
+     */
+    using std::abs;
+    using std::pow;
+    using std::sin;
+    using std::cos;
+    const double two_pi = 2 * std::acos(-1.0); 
+
+    // Find the convex hull of the vertices (i, log|f_i|)
+    std::vector<Point_2> points, hull; 
+    for (unsigned i = 0; i < coefs.size(); ++i)
+    {
+        points.push_back(Point_2(i, abs(coefs(i))));
+    }
+    // TODO Try other convex hull algorithms (Graham-Andrew, etc.)
+    CGAL::convex_hull_2(points.begin(), points.end(), std::back_inserter(hull));
+
+    // Run through the convex hull vertices, grab their x-coordinates, and sort
+    std::vector<double> hull_x;
+    for (auto&& p : hull)
+    {
+        hull_x.push_back(static_cast<int>(CGAL::to_double(p.x())));
+    }
+    std::sort(hull_x.begin(), hull_x.end());
+
+    // Compute u_{k_i} for each vertex in the convex hull
+    std::vector<double> u;
+    for (unsigned i = 0; i < hull_x.size() - 1; ++i)
+    {
+        int k = hull_x[i];
+        int l = hull_x[i+1];
+        u.push_back(pow(abs(coefs(k) / coefs(l)), 1.0 / (l - k)));
+    }
+
+    // Compute initial root approximations
+    // TODO Check that these approximations are correct on small examples
+    int n = coefs.size() - 1;
+    std::vector<std::complex<double> > inits; 
+    for (unsigned i = 0; i < hull_x.size() - 1; ++i)
+    {
+        int k = hull_x[i];
+        int l = hull_x[i+1];
+        for (unsigned j = 0; j < l - k; ++j)
+        {
+            double theta = (two_pi / (l - k)) * j + (two_pi * i / n) + dist(rng);
+            std::complex<double> z(cos(theta), sin(theta));
+            inits.push_back(u[i] * z);
+        }
+    }
+    return inits;
+}
 
 template <typename T>
 class Polynomial
@@ -282,14 +347,14 @@ class Polynomial
             unsigned iter = 0;
 
             // Start with type std::complex<double>
-            std::vector<mpc_30> roots, coefs;
+            std::vector<std::complex<double> > roots, coefs;
             for (unsigned i = 0; i < this->deg; ++i)
             {   // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
-                roots.push_back(pow(mpc_30(init_real, init_imag), i));
+                roots.push_back(std::pow(std::complex<double>(init_real, init_imag), i));
             }
             for (unsigned i = 0; i < this->coefs.size(); ++i)
             {
-                mpc_30 z(this->coefs(i), 0.0);
+                std::complex<double> z(this->coefs(i), 0.0);
                 coefs.push_back(z);
             }
             // Run the algorithm until all roots exhibit quadratic convergence
@@ -298,8 +363,8 @@ class Polynomial
             for (unsigned i = 0; i < this->deg; ++i) delta.push_back(0.0);
             while (iter < max_iter && !converged)
             {
-                auto result = weierstrass<mpc_30>(coefs, roots);
-                std::vector<mpc_30> new_roots = result.first;
+                auto result = weierstrass<std::complex<double> >(coefs, roots);
+                std::vector<std::complex<double> > new_roots = result.first;
                 new_delta = result.second;
                 iter++;
                 // Check that the change is less than the square of the 
@@ -317,7 +382,7 @@ class Polynomial
                 within_tol = true;
                 for (unsigned j = 0; j < this->deg; ++j)
                 {
-                    if (new_delta[j] > atol + rtol * abs(roots[j]))
+                    if (new_delta[j] > atol + rtol * std::abs(roots[j]))
                     {
                         within_tol = false;
                         break;
@@ -329,10 +394,58 @@ class Polynomial
             }
 
             // If not converged, try again with a type with greater precision
-            unsigned prec = 30;
+            unsigned prec = 17;
             while (!converged)
             {
-                if (prec < 60)
+                if (prec < 30)
+                {
+                    // Re-do the same calculations with mpc_30
+                    prec = 30; iter = 0;
+                    std::vector<mpc_30> roots2, coefs2;
+                    for (unsigned i = 0; i < this->deg; ++i)
+                    {
+                        roots2.push_back(mpc_30(roots[i].real(), roots[i].imag()));
+                        delta[i] = 0.0;
+                    }
+                    for (unsigned i = 0; i < this->coefs.size(); ++i)
+                    {
+                        std::stringstream ss;
+                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
+                        mpc_30 z(ss.str(), 0.0);
+                        coefs2.push_back(z);
+                    }
+                    while (iter < max_iter && !converged)
+                    {
+                        auto result = weierstrass<mpc_30>(coefs2, roots2);
+                        std::vector<mpc_30> new_roots = result.first;
+                        new_delta = result.second;
+                        iter++;
+                        quadratic = true;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
+                            {
+                                quadratic = false;
+                                break;
+                            }
+                        }
+                        within_tol = true;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
+                            {
+                                within_tol = false;
+                                break;
+                            }
+                        }
+                        if (quadratic || within_tol) converged = true;
+                        roots2 = new_roots;
+                        delta = new_delta;
+                    }
+                    for (unsigned i = 0; i < this->deg; ++i)
+                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
+                }
+                else if (prec < 60)
                 {
                     // Re-do the same calculations with mpc_60
                     prec = 60; iter = 0;
@@ -378,7 +491,7 @@ class Polynomial
                         delta = new_delta;
                     }
                     for (unsigned i = 0; i < this->deg; ++i)
-                        roots[i] = static_cast<mpc_30>(roots2[i]);
+                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
                 }
                 else if (prec < 100)
                 {
@@ -426,7 +539,7 @@ class Polynomial
                         delta = new_delta;
                     }
                     for (unsigned i = 0; i < this->deg; ++i)
-                        roots[i] = static_cast<mpc_30>(roots2[i]);
+                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
                 }
                 else if (prec < 200)
                 {
@@ -474,7 +587,7 @@ class Polynomial
                         delta = new_delta;
                     }
                     for (unsigned i = 0; i < this->deg; ++i)
-                        roots[i] = static_cast<mpc_30>(roots2[i]);
+                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
                 }
                 else
                 {
@@ -514,19 +627,19 @@ class Polynomial
 
             // Start with type std::complex<double>
             VectorXd dcoefvec = this->diff().coefficients();
-            std::vector<mpc_30> roots, coefs, dcoefs;
+            std::vector<std::complex<double> > roots, coefs, dcoefs;
             for (unsigned i = 0; i < this->deg; ++i)
             {   // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
-                roots.push_back(pow(mpc_30(init_real, init_imag), i));
+                roots.push_back(std::pow(std::complex<double>(init_real, init_imag), i));
             }
             for (unsigned i = 0; i < this->coefs.size(); ++i)
             {
-                mpc_30 z(this->coefs(i), 0.0);
+                std::complex<double> z(this->coefs(i), 0.0);
                 coefs.push_back(z);
             }
             for (unsigned i = 0; i < dcoefvec.size(); ++i)
             {
-                mpc_30 z(dcoefvec(i), 0.0);
+                std::complex<double> z(dcoefvec(i), 0.0);
                 dcoefs.push_back(z);
             }
             // Run the algorithm until all roots exhibit quadratic convergence
@@ -535,8 +648,8 @@ class Polynomial
             for (unsigned i = 0; i < this->deg; ++i) delta.push_back(0.0);
             while (iter < max_iter && !converged)
             {
-                auto result = aberth<mpc_30>(coefs, dcoefs, roots);
-                std::vector<mpc_30> new_roots = result.first;
+                auto result = aberth<std::complex<double> >(coefs, dcoefs, roots);
+                std::vector<std::complex<double> > new_roots = result.first;
                 new_delta = result.second;
                 iter++;
                 // Check that the change is less than the square of the 
@@ -567,15 +680,75 @@ class Polynomial
             // Sharpen each root for the given number of iterations 
             for (unsigned i = 0; i < sharpen_iter; ++i)
             {
-                auto result = newton<mpc_30>(coefs, dcoefs, roots);
+                auto result = newton<std::complex<double> >(coefs, dcoefs, roots);
                 roots = result.first;
             }
 
             // If not converged, try again with a type with greater precision
-            unsigned prec = 30;
+            unsigned prec = 17;
             while (!converged)
             {
-                if (prec < 60)
+                if (prec < 30)
+                {
+                    // Re-do the same calculations with mpc_30
+                    prec = 30; iter = 0;
+                    std::vector<mpc_30> roots2, coefs2, dcoefs2;
+                    for (unsigned i = 0; i < this->deg; ++i)
+                    {
+                        roots2.push_back(mpc_30(roots[i].real(), roots[i].imag()));
+                        delta[i] = 0.0;
+                    }
+                    for (unsigned i = 0; i < this->coefs.size(); ++i)
+                    {
+                        std::stringstream ss;
+                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
+                        mpc_30 z(ss.str(), "0.0");
+                        coefs2.push_back(z);
+                    }
+                    for (unsigned i = 0; i < dcoefvec.size(); ++i)
+                    {
+                        std::stringstream ss;
+                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << dcoefvec(i);
+                        mpc_30 z(ss.str(), "0.0");
+                        dcoefs2.push_back(z);
+                    }
+                    while (iter < max_iter && !converged)
+                    {
+                        auto result = aberth<mpc_30>(coefs2, dcoefs2, roots2);
+                        std::vector<mpc_30> new_roots = result.first;
+                        new_delta = result.second;
+                        iter++;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            quadratic = true;
+                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
+                            {
+                                quadratic = false;
+                                break;
+                            }
+                        }
+                        within_tol = true;
+                        for (unsigned j = 0; j < this->deg; ++j)
+                        {
+                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
+                            {
+                                within_tol = false;
+                                break;
+                            }
+                        }
+                        if (quadratic || within_tol) converged = true;
+                        roots2 = new_roots;
+                        delta = new_delta;
+                    }
+                    for (unsigned i = 0; i < sharpen_iter; ++i)
+                    {
+                        auto result = newton<mpc_30>(coefs2, dcoefs2, roots2);
+                        roots2 = result.first;
+                    }
+                    for (unsigned i = 0; i < this->deg; ++i)
+                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
+                }
+                else if (prec < 60)
                 {
                     // Re-do the same calculations with mpc_60
                     prec = 60; iter = 0;
@@ -634,7 +807,7 @@ class Polynomial
                         roots2 = result.first;
                     }
                     for (unsigned i = 0; i < this->deg; ++i)
-                        roots[i] = static_cast<mpc_30>(roots2[i]);
+                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
                 }
                 else if (prec < 100)
                 {
@@ -695,7 +868,7 @@ class Polynomial
                         roots2 = result.first;
                     }
                     for (unsigned i = 0; i < this->deg; ++i)
-                        roots[i] = static_cast<mpc_30>(roots2[i]);
+                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
                 }
                 else if (prec < 200)
                 {
@@ -756,7 +929,7 @@ class Polynomial
                         roots2 = result.first;
                     }
                     for (unsigned i = 0; i < this->deg; ++i)
-                        roots[i] = static_cast<mpc_30>(roots2[i]);
+                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
                 }
                 else
                 {
