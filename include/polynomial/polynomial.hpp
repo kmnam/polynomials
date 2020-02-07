@@ -21,7 +21,7 @@
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     2/4/2020
+ *     2/6/2020
  */
 using namespace Eigen;
 using boost::multiprecision::number;
@@ -70,6 +70,49 @@ Matrix<T, Dynamic, 1> removeTrailingZeros(const Ref<const Matrix<T, Dynamic, 1> 
         else break;
     }
     return w;
+}
+
+template <typename T>
+std::vector<std::complex<T> > quadratic(const T b, const T c)
+{
+    /*
+     * Solve the given monic quadratic. 
+     */
+    std::vector<std::complex<T> > roots; 
+    std::complex<T> disc = std::sqrt(std::complex<T>(b * b - 4 * c, 0.0));
+    roots.push_back((-b + disc) / 2.0);
+    roots.push_back((-b - disc) / 2.0);
+    return roots;
+}
+
+template <typename T>
+std::complex<T> cuberoot(std::complex<T> z)
+{
+    /*
+     * Return the principal cube root of z.
+     */
+    if (z.real() < 0)
+        return -std::pow(-z, 1.0 / 3.0);
+    else
+        return std::pow(z, 1.0 / 3.0);
+}
+
+template <typename T>
+std::vector<std::complex<T> > cubic(const T b, const T c, const T d)
+{
+    /*
+     * Solve the given monic cubic. 
+     */
+    std::vector<std::complex<T> > roots;
+    T q = (3 * c - b * b) / 9;
+    T r = (9 * b * c - 27 * d - 2 * std::pow(b, 3)) / 54;
+    T p = std::pow(q, 3) + std::pow(r, 2);
+    std::complex<T> s = cuberoot(r + std::sqrt(std::complex<T>(p, 0.0)));
+    std::complex<T> t = cuberoot(r - std::sqrt(std::complex<T>(p, 0.0)));
+    roots.push_back(-b / 3.0 + s + t);
+    roots.push_back(-b / 3.0 - (s + t) / 2.0 + std::complex<T>(0.0, 1.0) * std::sqrt(3) * (s - t) / 2.0);
+    roots.push_back(std::conj(roots[1]));
+    return roots;
 }
 
 template <typename CT>
@@ -1316,7 +1359,7 @@ class Polynomial
         }
 
         Matrix<std::complex<T>, Dynamic, 1> roots(SolveMethod method = Aberth,
-                                                  unsigned max_iter = 1000000,
+                                                  unsigned max_iter = 1000,
                                                   double atol = 1e-15,
                                                   double rtol = 1e-15,
                                                   unsigned sharpen_iter = 20,
@@ -1325,41 +1368,36 @@ class Polynomial
             /*
              * Return all complex roots of the polynomial.  
              */
-            if (method == Aberth)
-                return this->rootsAberth(max_iter, atol, rtol, sharpen_iter, inits);
-            else
-                return this->rootsWeierstrass(max_iter, atol, rtol, inits);
-        }
-
-        Matrix<T, Dynamic, 1> positiveRoots(SolveMethod method = Aberth, 
-                                            unsigned max_iter = 1000000,
-                                            double atol = 1e-15,
-                                            double rtol = 1e-15, 
-                                            double imag_tol = 1e-15,
-                                            unsigned sharpen_iter = 20,
-                                            std::vector<std::complex<double> > inits = {})
-        {
-            /*
-             * Return all positive roots with imaginary part less than the
-             * given tolerance.
-             */
-            Matrix<std::complex<T>, Dynamic, 1> roots;
-            if (method == Aberth)
-                roots = this->rootsAberth(max_iter, atol, rtol, sharpen_iter, inits);
-            else
-                roots = this->rootsWeierstrass(max_iter, atol, rtol, inits);
-            Matrix<T, Dynamic, 1> pos_roots;
-            unsigned i = 0;
-            for (unsigned j = 0; j < roots.size(); ++j)
+            if (this->deg == 2)
             {
-                if (roots(j).real() > imag_tol && std::abs(roots(j).imag()) < imag_tol)
-                {
-                    i++;
-                    pos_roots.conservativeResize(i);
-                    pos_roots(i-1) = roots(j).real();
-                }
+                Matrix<std::complex<T>, Dynamic, 1> roots(2);
+                T b = this->coefs(1) / this->coefs(2);
+                T c = this->coefs(0) / this->coefs(2);
+                std::vector<std::complex<T> > r = quadratic<T>(b, c);
+                roots(0) = r[0];
+                roots(1) = r[1];
+                return roots;
             }
-            return pos_roots;
+            else if (this->deg == 3)
+            {
+                Matrix<std::complex<T>, Dynamic, 1> roots(3);
+                T b = this->coefs(2) / this->coefs(3);
+                T c = this->coefs(1) / this->coefs(3);
+                T d = this->coefs(0) / this->coefs(3);
+                std::vector<std::complex<T> > r = cubic<T>(b, c, d);
+                roots(0) = r[0];
+                roots(1) = r[1];
+                roots(2) = r[2];
+                return roots;
+            }
+            else if (method == Aberth)
+            {
+                return this->rootsAberth(max_iter, atol, rtol, sharpen_iter, inits);
+            }
+            else
+            {
+                return this->rootsWeierstrass(max_iter, atol, rtol, inits);
+            }
         }
 };
 
