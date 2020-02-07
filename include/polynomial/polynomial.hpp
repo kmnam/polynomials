@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <complex>
 #include <limits>
+#include <boost/random.hpp>
 #include <Eigen/Dense>
 #include <boost/multiprecision/mpc.hpp>
 
@@ -231,12 +232,14 @@ std::pair<std::vector<CT>, std::vector<double> > aberth(const std::vector<CT>& c
     return std::make_pair(new_roots, delta);
 }
 
-#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
-#include <CGAL/convex_hull_2.h>
-#include <CGAL/ch_graham_andrew.h>
-
-typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
-typedef K::Point_2                                          Point_2; 
+bool ccw(std::pair<double, double> x, std::pair<double, double> y, std::pair<double, double> z)
+{
+    /*
+     * Determine if x, y, and z make a counterclockwise turn. 
+     */
+    double cross = (y.first - x.first) * (z.second - x.second) - (y.second - x.second) * (z.first - x.first);
+    return (cross > 0);
+}
 
 std::vector<std::complex<double> > biniInitialize(const Ref<const VectorXd>& coefs,
                                                   boost::random::mt19937& rng,
@@ -247,27 +250,36 @@ std::vector<std::complex<double> > biniInitialize(const Ref<const VectorXd>& coe
      * for the given vector of polynomial coefficients. 
      */
     using std::abs;
-    using std::log;
+    using std::log2;
     using std::pow;
     using std::sin;
     using std::cos;
     const double two_pi = 2 * std::acos(-1.0); 
 
-    // Find the upper convex hull of the vertices (i, log|f_i|)
-    std::vector<Point_2> points, hull; 
+    // Find the upper convex hull of the vertices (i, log|f_i|) with 
+    // the Andrew scan
+    std::vector<std::pair<double, double> > points;
     for (unsigned i = 0; i < coefs.size(); ++i)
     {
-        points.push_back(Point_2(i, log(abs(coefs(i)))));
+        if (abs(coefs(i)) == 0)
+            points.push_back(std::make_pair(i, -std::numeric_limits<double>::infinity()));
+        else
+            points.push_back(std::make_pair(i, log2(abs(coefs(i)))));
     }
-    // TODO Try other convex hull algorithms (Graham-Andrew, etc.)
-    CGAL::convex_hull_2(points.begin(), points.end(), std::back_inserter(hull));
+    std::vector<std::pair<double, double> > upper_hull;
+    for (int i = points.size() - 1; i >= 0; --i)
+    {
+        while (upper_hull.size() >= 2 && !ccw(upper_hull[upper_hull.size()-2], upper_hull[upper_hull.size()-1], points[i]))
+            upper_hull.pop_back();
+        upper_hull.push_back(points[i]);
+    }
 
     // Run through the convex hull vertices, grab their x-coordinates, and sort
     std::vector<double> hull_x;
-    for (auto&& p : hull)
+    for (auto&& p : upper_hull)
     {
-        if (!std::isinf(CGAL::to_double(p.y())))
-            hull_x.push_back(static_cast<int>(CGAL::to_double(p.x())));
+        if (!std::isinf(p.second))
+            hull_x.push_back(static_cast<int>(p.first));
     }
     std::sort(hull_x.begin(), hull_x.end());
 
@@ -307,71 +319,6 @@ class Polynomial
                                          // be represented by type T 
         Matrix<T, Dynamic, 1> coefs;     // Coefficients of the polynomial
                                          // stored in ascending order of power
-
-        Polynomial multiplyFFT(const Polynomial<T>& q) const
-        {
-            /*
-             * Return the result of multiplying by q.
-             *
-             * Compute the product with q using the FFT algorithm:
-             * 1) Evaluate the two polynomials at the (2d + 2)-th roots of 
-             *    unity, where d = max(this->deg, q.degree).
-             * 2) Multiply the pairs of values obtained above.
-             * 3) Interpolate the pairs of values to obtain the product
-             *    polynomial. 
-             */
-            const double two_pi = 2.0 * std::acos(-1);
-            unsigned p_deg = this->deg;
-            unsigned q_deg = q.degree();
-            Matrix<T, Dynamic, 1> p_coefs;
-            Matrix<T, Dynamic, 1> q_coefs;
-            if (p_deg > q_deg)
-            {
-                p_coefs = this->coefs;
-                q_coefs = appendZeros<T>(q.coefficients(), p_deg - q_deg);
-            }
-            else if (p_deg < q_deg)
-            {
-                q_coefs = q.coefficients();
-                p_coefs = appendZeros<T>(this->coefs(), q_deg - p_deg);
-            }
-
-            // Evaluate the two polynomials at the (2d)-th roots of unity
-            unsigned pq_deg = 2 * std::max(p_deg, q_deg);
-            Array<std::complex<T>, Dynamic, 1> values_p(pq_deg);
-            Array<std::complex<T>, Dynamic, 1> values_q(pq_deg);
-            for (unsigned i = 0; i < pq_deg; ++i)
-            {
-                T a = std::cos(two_pi * i / pq_deg);
-                T b = std::sin(two_pi * i / pq_deg);
-                std::complex<T> z(a, b);
-                values_p(i) = this->eval(z);
-                values_q(i) = q.eval(z);
-            }
-
-            // Multiply the two vectors of values pointwise
-            auto values_pq = (values_p * values_q).matrix();
-
-            // Interpolate the product values by the inverse DFT
-            Matrix<std::complex<T>, Dynamic, Dynamic> inv_dft(pq_deg, pq_deg);
-            for (unsigned i = 0; i < pq_deg; ++i)
-            {
-                inv_dft(0, i) = 1.0;
-                inv_dft(i, 0) = 1.0;
-            }
-            for (unsigned i = 1; i < pq_deg; ++i)
-            {
-                for (unsigned j = 1; j < pq_deg; ++j)
-                {
-                    T a = std::cos(two_pi * i * j / pq_deg);
-                    T b = -std::sin(two_pi * i * j / pq_deg);
-                    std::complex<T> z(a, b);
-                    inv_dft(i, j) = z; 
-                }
-            }
-            Matrix<T, Dynamic, 1> prod_coefs = (inv_dft * values_pq).array().real().matrix();
-            return Polynomial(prod_coefs);
-        }
 
         Matrix<std::complex<T>, Dynamic, 1> rootsWeierstrass(unsigned max_iter,
                                                              double atol,
@@ -1378,18 +1325,18 @@ class Polynomial
                 roots(1) = r[1];
                 return roots;
             }
-            else if (this->deg == 3)
-            {
-                Matrix<std::complex<T>, Dynamic, 1> roots(3);
-                T b = this->coefs(2) / this->coefs(3);
-                T c = this->coefs(1) / this->coefs(3);
-                T d = this->coefs(0) / this->coefs(3);
-                std::vector<std::complex<T> > r = cubic<T>(b, c, d);
-                roots(0) = r[0];
-                roots(1) = r[1];
-                roots(2) = r[2];
-                return roots;
-            }
+            //else if (this->deg == 3)
+            //{
+            //    Matrix<std::complex<T>, Dynamic, 1> roots(3);
+            //    T b = this->coefs(2) / this->coefs(3);
+            //    T c = this->coefs(1) / this->coefs(3);
+            //    T d = this->coefs(0) / this->coefs(3);
+            //    std::vector<std::complex<T> > r = cubic<T>(b, c, d);
+            //    roots(0) = r[0];
+            //    roots(1) = r[1];
+            //    roots(2) = r[2];
+            //    return roots;
+            //}
             else if (method == Aberth)
             {
                 return this->rootsAberth(max_iter, atol, rtol, sharpen_iter, inits);
