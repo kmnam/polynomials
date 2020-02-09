@@ -177,7 +177,7 @@ std::pair<std::vector<CT>, std::vector<double> > weierstrass(const std::vector<C
         CT denom = 1.0;
         for (unsigned k = 0; k < roots.size(); ++k)
         {
-            if (j != k) denom *= (roots[j] - roots[k]);
+            if (j != k) denom *= (roots[j] - new_roots[k]);
         }
         CT correction = -horner<CT>(coefs, roots[j]) / denom;
         new_roots[j] += correction;
@@ -212,7 +212,7 @@ std::pair<std::vector<CT>, std::vector<double> > aberth(const std::vector<CT>& c
         CT sum = 0.0;
         for (unsigned k = 0; k < roots.size(); ++k)
         {
-            if (j != k) sum += (1.0 / (roots[j] - roots[k]));
+            if (j != k) sum += (1.0 / (roots[j] - new_roots[k]));
         }
         CT val = horner<CT>(coefs, roots[j]) / horner<CT>(dcoefs, roots[j]);
         CT denom = 1.0 - (val * sum);
