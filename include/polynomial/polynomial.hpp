@@ -5,9 +5,11 @@
 #include <ostream>
 #include <string>
 #include <vector>
+#include <algorithm>
 #include <stdexcept>
 #include <complex>
 #include <limits>
+#include <boost/random.hpp>
 #include <Eigen/Dense>
 #include <boost/multiprecision/mpc.hpp>
 
@@ -33,6 +35,12 @@ typedef number<mpc_complex_backend<200> > mpc_200;
 // ------------------------------------------------------------------ //
 //                      VARIOUS HELPER FUNCTIONS                      //
 // ------------------------------------------------------------------ //
+enum SolveMethod 
+{
+    Weierstrass,
+    Aberth
+};
+
 template <typename T>
 Matrix<T, Dynamic, 1> appendZeros(const Ref<const Matrix<T, Dynamic, 1> >& v, unsigned j)
 {
@@ -63,6 +71,49 @@ Matrix<T, Dynamic, 1> removeTrailingZeros(const Ref<const Matrix<T, Dynamic, 1> 
         else break;
     }
     return w;
+}
+
+template <typename T>
+std::vector<std::complex<T> > quadratic(const T b, const T c)
+{
+    /*
+     * Solve the given monic quadratic. 
+     */
+    std::vector<std::complex<T> > roots; 
+    std::complex<T> disc = std::sqrt(std::complex<T>(b * b - 4 * c, 0.0));
+    roots.push_back((-b + disc) / 2.0);
+    roots.push_back((-b - disc) / 2.0);
+    return roots;
+}
+
+template <typename T>
+std::complex<T> cuberoot(std::complex<T> z)
+{
+    /*
+     * Return the principal cube root of z.
+     */
+    if (z.real() < 0)
+        return -std::pow(-z, 1.0 / 3.0);
+    else
+        return std::pow(z, 1.0 / 3.0);
+}
+
+template <typename T>
+std::vector<std::complex<T> > cubic(const T b, const T c, const T d)
+{
+    /*
+     * Solve the given monic cubic. 
+     */
+    std::vector<std::complex<T> > roots;
+    T q = (3 * c - b * b) / 9;
+    T r = (9 * b * c - 27 * d - 2 * std::pow(b, 3)) / 54;
+    T p = std::pow(q, 3) + std::pow(r, 2);
+    std::complex<T> s = cuberoot(r + std::sqrt(std::complex<T>(p, 0.0)));
+    std::complex<T> t = cuberoot(r - std::sqrt(std::complex<T>(p, 0.0)));
+    roots.push_back(-b / 3.0 + s + t);
+    roots.push_back(-b / 3.0 - (s + t) / 2.0 + std::complex<T>(0.0, 1.0) * std::sqrt(3) * (s - t) / 2.0);
+    roots.push_back(std::conj(roots[1]));
+    return roots;
 }
 
 template <typename CT>
@@ -126,9 +177,9 @@ std::pair<std::vector<CT>, std::vector<double> > weierstrass(const std::vector<C
         CT denom = 1.0;
         for (unsigned k = 0; k < roots.size(); ++k)
         {
-            if (j != k) denom *= (new_roots[j] - new_roots[k]);
+            if (j != k) denom *= (roots[j] - new_roots[k]);
         }
-        CT correction = -horner<CT>(coefs, new_roots[j]) / denom;
+        CT correction = -horner<CT>(coefs, roots[j]) / denom;
         new_roots[j] += correction;
     }
 
@@ -168,7 +219,7 @@ std::pair<std::vector<CT>, std::vector<double> > aberth(const std::vector<CT>& c
             sum += (1.0 / (roots[j] - roots[k])); 
         }
         CT val = horner<CT>(coefs, roots[j]) / horner<CT>(dcoefs, roots[j]);
-        CT denom = 1.0 - val * sum;
+        CT denom = 1.0 - (val * sum);
         CT correction = val / denom;
         new_roots[j] -= correction;
     }
@@ -185,6 +236,84 @@ std::pair<std::vector<CT>, std::vector<double> > aberth(const std::vector<CT>& c
     return std::make_pair(new_roots, delta);
 }
 
+bool ccw(std::pair<double, double> x, std::pair<double, double> y, std::pair<double, double> z)
+{
+    /*
+     * Determine if x, y, and z make a counterclockwise turn. 
+     */
+    double cross = (y.first - x.first) * (z.second - x.second) - (y.second - x.second) * (z.first - x.first);
+    return (cross > 0);
+}
+
+std::vector<std::complex<double> > biniInitialize(const Ref<const VectorXd>& coefs,
+                                                  boost::random::mt19937& rng,
+                                                  boost::random::uniform_real_distribution<double>& dist)
+{
+    /*
+     * Use Bini's initialization to yield a set of initial complex roots 
+     * for the given vector of polynomial coefficients. 
+     */
+    using std::abs;
+    using std::log2;
+    using std::pow;
+    using std::sin;
+    using std::cos;
+    const double two_pi = 2 * std::acos(-1.0); 
+
+    // Find the upper convex hull of the vertices (i, log|f_i|) with 
+    // the Andrew scan
+    std::vector<std::pair<double, double> > points;
+    for (unsigned i = 0; i < coefs.size(); ++i)
+    {
+        if (abs(coefs(i)) == 0)
+            points.push_back(std::make_pair(i, -std::numeric_limits<double>::infinity()));
+        else
+            points.push_back(std::make_pair(i, log2(abs(coefs(i)))));
+    }
+    std::vector<std::pair<double, double> > upper_hull;
+    for (int i = points.size() - 1; i >= 0; --i)
+    {
+        while (upper_hull.size() >= 2 && !ccw(upper_hull[upper_hull.size()-2], upper_hull[upper_hull.size()-1], points[i]))
+            upper_hull.pop_back();
+        upper_hull.push_back(points[i]);
+    }
+
+    // Run through the convex hull vertices, grab their x-coordinates, and sort
+    std::vector<double> hull_x;
+    for (auto&& p : upper_hull)
+    {
+        if (!std::isinf(p.second))
+            hull_x.push_back(static_cast<int>(p.first));
+    }
+    std::sort(hull_x.begin(), hull_x.end());
+
+    // Compute u_{k_i} for each vertex in the convex hull
+    std::vector<double> u;
+    for (unsigned i = 0; i < hull_x.size() - 1; ++i)
+    {
+        int k = hull_x[i];
+        int l = hull_x[i+1];
+        u.push_back(pow(abs(coefs(k) / coefs(l)), 1.0 / (l - k)));
+    }
+
+    // Compute initial root approximations
+    // TODO Check that these approximations are correct (how?) on small examples
+    int n = coefs.size() - 1;
+    std::vector<std::complex<double> > inits; 
+    for (unsigned i = 0; i < hull_x.size() - 1; ++i)
+    {
+        int k = hull_x[i];
+        int l = hull_x[i+1];
+        for (unsigned j = 0; j < l - k; ++j)
+        {
+            double theta = (two_pi / (l - k)) * j + (two_pi * i / n) + dist(rng);
+            std::complex<double> z(cos(theta), sin(theta));
+            inits.push_back(u[i] * z);
+        }
+    }
+    return inits;
+}
+
 template <typename T>
 class Polynomial
 {
@@ -195,74 +324,10 @@ class Polynomial
         Matrix<T, Dynamic, 1> coefs;     // Coefficients of the polynomial
                                          // stored in ascending order of power
 
-        Polynomial multiplyFFT(const Polynomial<T>& q) const
-        {
-            /*
-             * Return the result of multiplying by q.
-             *
-             * Compute the product with q using the FFT algorithm:
-             * 1) Evaluate the two polynomials at the (2d + 2)-th roots of 
-             *    unity, where d = max(this->deg, q.degree).
-             * 2) Multiply the pairs of values obtained above.
-             * 3) Interpolate the pairs of values to obtain the product
-             *    polynomial. 
-             */
-            const double two_pi = 2.0 * std::acos(-1);
-            unsigned p_deg = this->deg;
-            unsigned q_deg = q.degree();
-            Matrix<T, Dynamic, 1> p_coefs;
-            Matrix<T, Dynamic, 1> q_coefs;
-            if (p_deg > q_deg)
-            {
-                p_coefs = this->coefs;
-                q_coefs = appendZeros<T>(q.coefficients(), p_deg - q_deg);
-            }
-            else if (p_deg < q_deg)
-            {
-                q_coefs = q.coefficients();
-                p_coefs = appendZeros<T>(this->coefs(), q_deg - p_deg);
-            }
-
-            // Evaluate the two polynomials at the (2d)-th roots of unity
-            unsigned pq_deg = 2 * std::max(p_deg, q_deg);
-            Array<std::complex<T>, Dynamic, 1> values_p(pq_deg);
-            Array<std::complex<T>, Dynamic, 1> values_q(pq_deg);
-            for (unsigned i = 0; i < pq_deg; ++i)
-            {
-                T a = std::cos(two_pi * i / pq_deg);
-                T b = std::sin(two_pi * i / pq_deg);
-                std::complex<T> z(a, b);
-                values_p(i) = this->eval(z);
-                values_q(i) = q.eval(z);
-            }
-
-            // Multiply the two vectors of values pointwise
-            auto values_pq = (values_p * values_q).matrix();
-
-            // Interpolate the product values by the inverse DFT
-            Matrix<std::complex<T>, Dynamic, Dynamic> inv_dft(pq_deg, pq_deg);
-            for (unsigned i = 0; i < pq_deg; ++i)
-            {
-                inv_dft(0, i) = 1.0;
-                inv_dft(i, 0) = 1.0;
-            }
-            for (unsigned i = 1; i < pq_deg; ++i)
-            {
-                for (unsigned j = 1; j < pq_deg; ++j)
-                {
-                    T a = std::cos(two_pi * i * j / pq_deg);
-                    T b = -std::sin(two_pi * i * j / pq_deg);
-                    std::complex<T> z(a, b);
-                    inv_dft(i, j) = z; 
-                }
-            }
-            Matrix<T, Dynamic, 1> prod_coefs = (inv_dft * values_pq).array().real().matrix();
-            return Polynomial(prod_coefs);
-        }
-
         Matrix<std::complex<T>, Dynamic, 1> rootsWeierstrass(unsigned max_iter,
                                                              double atol,
-                                                             double rtol)
+                                                             double rtol,
+                                                             std::vector<std::complex<double> > inits = {})
         {
             /*
              * Run Weierstrass' method on the given polynomial, returning the 
@@ -276,11 +341,24 @@ class Polynomial
             bool within_tol = false;
             unsigned iter = 0;
 
+            // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
+            // if initializations were not specified 
+            if (inits.size() == 0)
+            {
+                for (unsigned i = 0; i < this->deg; ++i)
+                    inits.push_back(std::pow(std::complex<double>(0.4, 0.9), i));
+            }
+            // Throw exception if improper number of initializations were specified
+            else if (inits.size() != this->deg)
+            {
+                throw std::runtime_error("Invalid number of initial roots specified");
+            }
+
             // Start with type std::complex<double>
             std::vector<std::complex<double> > roots, coefs;
             for (unsigned i = 0; i < this->deg; ++i)
-            {   // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
-                roots.push_back(std::pow(std::complex<double>(0.4, 0.9), i));
+            {
+                roots.push_back(inits[i]);
             }
             for (unsigned i = 0; i < this->coefs.size(); ++i)
             {
@@ -333,7 +411,7 @@ class Polynomial
                     prec = 30; iter = 0;
                     std::vector<mpc_30> roots2, coefs2;
                     for (unsigned i = 0; i < this->deg; ++i)
-                    { 
+                    {
                         roots2.push_back(mpc_30(roots[i].real(), roots[i].imag()));
                         delta[i] = 0.0;
                     }
@@ -341,7 +419,7 @@ class Polynomial
                     {
                         std::stringstream ss;
                         ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
-                        mpc_30 z(ss.str(), "0.0");
+                        mpc_30 z(ss.str(), 0.0);
                         coefs2.push_back(z);
                     }
                     while (iter < max_iter && !converged)
@@ -372,6 +450,8 @@ class Polynomial
                         roots2 = new_roots;
                         delta = new_delta;
                     }
+                    for (unsigned i = 0; i < this->deg; ++i)
+                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
                 }
                 else if (prec < 60)
                 {
@@ -537,7 +617,8 @@ class Polynomial
         Matrix<std::complex<T>, Dynamic, 1> rootsAberth(unsigned max_iter,
                                                         double atol,
                                                         double rtol,
-                                                        unsigned sharpen_iter = 20)
+                                                        unsigned sharpen_iter = 20,
+                                                        std::vector<std::complex<double> > inits = {})
         {
             /*
              * Run the Aberth-Ehrlich method on the given polynomial, returning the 
@@ -551,12 +632,25 @@ class Polynomial
             bool within_tol = false;
             unsigned iter = 0;
 
+            // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
+            // if initializations were not specified 
+            if (inits.size() == 0)
+            {
+                for (unsigned i = 0; i < this->deg; ++i)
+                    inits.push_back(std::pow(std::complex<double>(0.4, 0.9), i));
+            }
+            // Throw exception if improper number of initializations were specified
+            else if (inits.size() != this->deg)
+            {
+                throw std::runtime_error("Invalid number of initial roots specified");
+            }
+
             // Start with type std::complex<double>
             VectorXd dcoefvec = this->diff().coefficients();
             std::vector<std::complex<double> > roots, coefs, dcoefs;
             for (unsigned i = 0; i < this->deg; ++i)
-            {   // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
-                roots.push_back(std::pow(std::complex<double>(0.4, 0.9), i));
+            {
+                roots.push_back(inits[i]);
             }
             for (unsigned i = 0; i < this->coefs.size(); ++i)
             {
@@ -593,7 +687,7 @@ class Polynomial
                 within_tol = true;
                 for (unsigned j = 0; j < this->deg; ++j)
                 {
-                    if (new_delta[j] > atol + rtol * std::abs(roots[j]))
+                    if (new_delta[j] > atol + rtol * abs(roots[j]))
                     {
                         within_tol = false;
                         break;
@@ -1215,38 +1309,46 @@ class Polynomial
             return Polynomial<T>(this->coefs / this->leadingCoef());
         }
 
-        Matrix<std::complex<T>, Dynamic, 1> roots(unsigned max_iter = 10000,
+        Matrix<std::complex<T>, Dynamic, 1> roots(SolveMethod method = Aberth,
+                                                  unsigned max_iter = 1000,
                                                   double atol = 1e-15,
-                                                  double rtol = 1e-15)
+                                                  double rtol = 1e-15,
+                                                  unsigned sharpen_iter = 20,
+                                                  std::vector<std::complex<double> > inits = {})
         {
             /*
              * Return all complex roots of the polynomial.  
              */
-            return this->rootsAberth(max_iter, atol, rtol);
-        }
-
-        Matrix<T, Dynamic, 1> positiveRoots(unsigned max_iter = 10000,
-                                            double atol = 1e-15,
-                                            double rtol = 1e-15, 
-                                            double imag_tol = 1e-15)
-        {
-            /*
-             * Return all positive roots with imaginary part less than the
-             * given tolerance.
-             */
-            Matrix<std::complex<T>, Dynamic, 1> roots = this->rootsAberth(max_iter, atol, rtol);
-            Matrix<T, Dynamic, 1> pos_roots;
-            unsigned i = 0;
-            for (unsigned j = 0; j < roots.size(); ++j)
+            if (this->deg == 2)
             {
-                if (roots(j).real() > imag_tol && std::abs(roots(j).imag()) < imag_tol)
-                {
-                    i++;
-                    pos_roots.conservativeResize(i);
-                    pos_roots(i-1) = roots(j).real();
-                }
+                Matrix<std::complex<T>, Dynamic, 1> roots(2);
+                T b = this->coefs(1) / this->coefs(2);
+                T c = this->coefs(0) / this->coefs(2);
+                std::vector<std::complex<T> > r = quadratic<T>(b, c);
+                roots(0) = r[0];
+                roots(1) = r[1];
+                return roots;
             }
-            return pos_roots;
+            //else if (this->deg == 3)
+            //{
+            //    Matrix<std::complex<T>, Dynamic, 1> roots(3);
+            //    T b = this->coefs(2) / this->coefs(3);
+            //    T c = this->coefs(1) / this->coefs(3);
+            //    T d = this->coefs(0) / this->coefs(3);
+            //    std::vector<std::complex<T> > r = cubic<T>(b, c, d);
+            //    roots(0) = r[0];
+            //    roots(1) = r[1];
+            //    roots(2) = r[2];
+            //    return roots;
+            //}
+            else if (method == Aberth)
+            {
+                return this->rootsAberth(max_iter, atol, rtol, sharpen_iter, inits);
+            }
+            else
+            {
+                return this->rootsWeierstrass(max_iter, atol, rtol, inits);
+            }
         }
 };
 
