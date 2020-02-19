@@ -20,7 +20,7 @@
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     2/4/2020
+ *     2/18/2020
  */
 using namespace Eigen;
 using boost::multiprecision::number;
@@ -159,9 +159,13 @@ std::pair<std::vector<CT>, std::vector<double> > aberth(const std::vector<CT>& c
     for (unsigned j = 0; j < roots.size(); ++j)
     {
         CT sum = 0.0;
-        for (unsigned k = 0; k < roots.size(); ++k)
+        for (unsigned k = 0; k < j; ++k)
         {
-            if (j != k) sum += (1.0 / (new_roots[j] - new_roots[k]));
+            sum += (1.0 / (roots[j] - new_roots[k]));
+        }
+        for (unsigned k = j + 1; k < roots.size(); ++k)
+        {
+            sum += (1.0 / (roots[j] - roots[k])); 
         }
         CT val = horner<CT>(coefs, roots[j]) / horner<CT>(dcoefs, roots[j]);
         CT denom = 1.0 - val * sum;
@@ -180,7 +184,6 @@ std::pair<std::vector<CT>, std::vector<double> > aberth(const std::vector<CT>& c
     
     return std::make_pair(new_roots, delta);
 }
-
 
 template <typename T>
 class Polynomial
