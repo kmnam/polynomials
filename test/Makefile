@@ -7,15 +7,15 @@
 #     4/11/2019
 # ------------------------------------------------------------ #
 
-CXX = g++
+CXX = g++-10
 
-CXXFLAGS = --std=c++14 -frounding-math
+CXXFLAGS = --std=c++11 -frounding-math
 
-INCLUDES = -I/home/kmn7/lib2/boost-1.68.0/build/include -I/home/kmn7/lib2/eigen-3.3.7 -I/n/groups/gunawardena/shared/CGAL-5.0.1/include 
+INCLUDES = -I/usr/local/Cellar/boost/1.71.0/include
 
-LDFLAGS = -L/home/kmn7/lib2/boost-1.68.0/build/lib 
+LDFLAGS = -L/usr/local/Cellar/boost/1.71.0/lib 
 
-LIBS = -lboost_unit_test_framework -lgmp -lmpfr -lmpc
+LIBS = -lmpfr -lmpc -lboost_unit_test_framework
 
 SRC_DIR = src
 

@@ -1,5 +1,5 @@
-#ifndef UNIVAR_POLYNOMIAL_HPP
-#define UNIVAR_POLYNOMIAL_HPP
+#ifndef UNIVAR_POLYNOMIAL_MULTIPREC_HPP
+#define UNIVAR_POLYNOMIAL_MULTIPREC_HPP
 
 #include <utility>
 #include <ostream>
@@ -7,30 +7,24 @@
 #include <vector>
 #include <algorithm>
 #include <stdexcept>
-#include <complex>
 #include <limits>
 #include <boost/random.hpp>
-#include <Eigen/Dense>
 #include <boost/multiprecision/mpc.hpp>
 
 /*
  * A Polynomial class template with arbitrary real coefficients.
  *
- * The coefficients used in this class should be those that support usage
- * with std::complex.  
+ * The internal functions defined here use boost::multiprecision::number
+ * types with float/complex backends with user-defined precision.  
  *
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     2/18/2020
+ *     12/16/2020
  */
-using namespace Eigen;
 using boost::multiprecision::number;
+using boost::multiprecision::mpfr_float_backend;
 using boost::multiprecision::mpc_complex_backend;
-typedef number<mpc_complex_backend<30> > mpc_30;
-typedef number<mpc_complex_backend<60> > mpc_60;
-typedef number<mpc_complex_backend<100> > mpc_100;
-typedef number<mpc_complex_backend<200> > mpc_200;
 
 // ------------------------------------------------------------------ //
 //                      VARIOUS HELPER FUNCTIONS                      //
@@ -42,194 +36,225 @@ enum SolveMethod
 };
 
 template <typename T>
-Matrix<T, Dynamic, 1> appendZeros(const Ref<const Matrix<T, Dynamic, 1> >& v, unsigned j)
+std::vector<T> appendZeros(const std::vector<T>& v, int j)
 {
     /*
-     * Pad the given vector, v, with j zeros. 
+     * Return a new copy of v with j appended zeros.
      */
-    Matrix<T, Dynamic, 1> w(v);
-    w.conservativeResize(w.size() + j);
-    for (unsigned i = v.size(); i < w.size(); ++i) w(i) = 0;
+    std::vector<T> w(v);
+    for (int i = 0; i < j; ++i) w.push_back(0);
     return w;
 }
 
 template <typename T>
-Matrix<T, Dynamic, 1> removeTrailingZeros(const Ref<const Matrix<T, Dynamic, 1> >& v)
+std::vector<T> removeTrailingZeros(const std::vector<T>& v)
 {
     /*
-     * Remove trailing zeros from v.
+     * Return a new copy of v with all trailing zeros removed. 
      */
-    Matrix<T, Dynamic, 1> w(v);
-    int size = v.size();
+    std::vector<T> w(v);
     for (int i = v.size() - 1; i >= 0; --i)
     {
-        if (v(i) == 0)
-        {
-            size--;
-            w = w.head(size).eval();
-        }
-        else break;
+        if (v[i] == 0) w.pop_back();
+        else           break;
     }
     return w;
 }
 
-template <typename T>
-std::vector<std::complex<T> > quadratic(const T b, const T c)
+template <unsigned N>
+std::vector<number<mpc_complex_backend<N> > > quadratic(const number<mpfr_float_backend<N> > b,
+                                                        const number<mpfr_float_backend<N> > c)
 {
     /*
-     * Solve the given monic quadratic. 
+     * Solve the given monic quadratic, x^2 + b*x + c = 0, with coefficients of 
+     * type number<mpfr_float_backend>.
      */
-    std::vector<std::complex<T> > roots; 
-    std::complex<T> disc = std::sqrt(std::complex<T>(b * b - 4 * c, 0.0));
+    typedef number<mpc_complex_backend<N> > CTN;
+    std::vector<CTN> roots; 
+    CTN disc = boost::multiprecision::sqrt(CTN(b * b - 4 * c, 0.0));
     roots.push_back((-b + disc) / 2.0);
     roots.push_back((-b - disc) / 2.0);
     return roots;
 }
 
-template <typename T>
-std::complex<T> cuberoot(std::complex<T> z)
+template <unsigned N>
+number<mpc_complex_backend<N> > cuberoot(number<mpc_complex_backend<N> > z)
 {
     /*
-     * Return the principal cube root of z.
+     * Return the principal cube root of the complex number z.
      */
     if (z.real() < 0)
-        return -std::pow(-z, 1.0 / 3.0);
+        return -boost::multiprecision::pow(-z, 1.0 / 3.0);
     else
-        return std::pow(z, 1.0 / 3.0);
+        return boost::multiprecision::pow(z, 1.0 / 3.0);
 }
 
-template <typename T>
-std::vector<std::complex<T> > cubic(const T b, const T c, const T d)
+template <unsigned N>
+std::vector<number<mpc_complex_backend<N> > > cubic(const number<mpfr_float_backend<N> > b,
+                                                    const number<mpfr_float_backend<N> > c,
+                                                    const number<mpfr_float_backend<N> > d)
 {
     /*
-     * Solve the given monic cubic. 
+     * Solve the given monic cubic, x^3 + b*x^2 + c*x + d = 0. 
      */
-    std::vector<std::complex<T> > roots;
-    T q = (3 * c - b * b) / 9;
-    T r = (9 * b * c - 27 * d - 2 * std::pow(b, 3)) / 54;
-    T p = std::pow(q, 3) + std::pow(r, 2);
-    std::complex<T> s = cuberoot(r + std::sqrt(std::complex<T>(p, 0.0)));
-    std::complex<T> t = cuberoot(r - std::sqrt(std::complex<T>(p, 0.0)));
+    typedef number<mpfr_float_backend<N> >  RTN;
+    typedef number<mpc_complex_backend<N> > CTN;
+    std::vector<CTN> roots;
+    const RTN sqrt3 = boost::multiprecision::sqrt(RTN(3.0));
+    RTN q = (3 * c - b * b) / 9;
+    RTN r = (9 * b * c - 27 * d - 2 * boost::multiprecision::pow(b, 3)) / 54;
+    RTN p = boost::multiprecision::pow(q, 3) + boost::multiprecision::pow(r, 2);
+    CTN s = cuberoot(r + boost::multiprecision::sqrt(CTN(p, 0.0)));
+    CTN t = cuberoot(r - boost::multiprecision::sqrt(CTN(p, 0.0)));
     roots.push_back(-b / 3.0 + s + t);
-    roots.push_back(-b / 3.0 - (s + t) / 2.0 + std::complex<T>(0.0, 1.0) * std::sqrt(3) * (s - t) / 2.0);
-    roots.push_back(std::conj(roots[1]));
+    roots.push_back(-b / 3.0 - (s + t) / 2.0 + CTN(0.0, 1.0) * sqrt3 * (s - t) / 2.0);
+    roots.push_back(boost::multiprecision::conj(roots[1]));
     return roots;
 }
 
-template <typename CT>
-CT horner(const std::vector<CT>& coefs, CT x)
+template <unsigned N, unsigned M>
+number<mpc_complex_backend<M> > horner(const std::vector<number<mpfr_float_backend<N> > >& coefs,
+                                       const number<mpc_complex_backend<N> > x)
 {
     /*
-     * Perform Horner's method, given the vector of coefficients corresponding
-     * to the polynomial and a value at which the polynomial is to be evaluated. 
-     */ 
-    CT y = coefs[coefs.size() - 1];
+     * Perform Horner's method for evaluating a (real) polynomial at a
+     * (complex) value, given the vector of its coefficients and the value
+     * at which the polynomial is to be evaluated. 
+     */
+    typedef number<mpc_complex_backend<M> > CTM;
+
+    CTM value(x);
+    CTM y(coefs[coefs.size() - 1], 0.0);
     for (int i = coefs.size() - 2; i >= 0; --i)
     {
-        y *= x;
-        y += coefs[i];
+        y *= value;
+        CTM coef(coefs[i], 0.0);
+        y += coef;
     }
     return y;
 }
 
-template <typename CT>
-std::pair<std::vector<CT>, std::vector<double> > newton(const std::vector<CT>& coefs,
-                                                        const std::vector<CT>& dcoefs,
-                                                        const std::vector<CT>& roots)
+template <unsigned N, unsigned M>
+std::pair<std::vector<number<mpc_complex_backend<M> > >, std::vector<double> >
+    newton(const std::vector<number<mpfr_float_backend<N> > >& coefs,
+           const std::vector<number<mpfr_float_backend<N> > >& dcoefs,
+           const std::vector<number<mpc_complex_backend<N> > >& roots)
 {
     /*
      * Perform one iteration of Newton's method, given the vector of 
      * coefficients corresponding to the polynomial, its derivative, and 
      * a vector of current root approximations. 
      */
+    typedef number<mpc_complex_backend<M> > CTM;
+
     // Perform the Newton correction for each root
-    std::vector<CT> new_roots(roots);
-    for (unsigned j = 0; j < roots.size(); ++j)
+    std::vector<CTM> new_roots;
+    for (int j = 0; j < roots.size(); ++j)
     {
-        new_roots[j] -= (horner<CT>(coefs, roots[j]) / horner<CT>(dcoefs, roots[j]));
+        CTM new_root(roots[j]);
+        new_roots.push_back(new_root - (horner<N, M>(coefs, roots[j]) / horner<N, M>(dcoefs, roots[j])));
     }
 
     // Compute the absolute difference between each old and new root
     std::vector<double> delta;
-    for (unsigned j = 0; j < roots.size(); ++j)
+    for (int j = 0; j < roots.size(); ++j)
     {
-        double dr = static_cast<double>(roots[j].real() - new_roots[j].real());
-        double di = static_cast<double>(roots[j].imag() - new_roots[j].imag());
+        double dr = static_cast<double>(roots[j].real()) - static_cast<double>(new_roots[j].real());
+        double di = static_cast<double>(roots[j].imag()) - static_cast<double>(new_roots[j].imag());
         delta.push_back(std::sqrt(std::pow(dr, 2.0) + std::pow(di, 2.0)));
     }
 
     return std::make_pair(new_roots, delta);
 }
 
-template <typename CT>
-std::pair<std::vector<CT>, std::vector<double> > weierstrass(const std::vector<CT>& coefs,
-                                                             const std::vector<CT>& roots)
+template <unsigned N, unsigned M>
+std::pair<std::vector<number<mpc_complex_backend<M> > >, std::vector<double> >
+    weierstrass(const std::vector<number<mpfr_float_backend<N> > >& coefs,
+                const std::vector<number<mpc_complex_backend<N> > >& roots)
 {
     /*
      * Perform one iteration of Weierstrass' method, given the vector 
      * of coefficients corresponding to the polynomial and a vector of 
      * current root approximations.  
      */
+    typedef number<mpc_complex_backend<M> > CTM;
+
     // Perform the Weierstrass correction for each root
-    std::vector<CT> new_roots(roots);
-    for (unsigned j = 0; j < roots.size(); ++j)
+    std::vector<CTM> new_roots;
+    for (auto&& root : roots)
     {
-        CT denom = 1.0;
-        for (unsigned k = 0; k < roots.size(); ++k)
+        CTM new_root(root);
+        new_roots.push_back(new_root);
+    }
+    for (int j = 0; j < roots.size(); ++j)
+    {
+        CTM root(roots[j]);
+        CTM denom = 1.0;
+        for (int k = 0; k < roots.size(); ++k)
         {
-            if (j != k) denom *= (roots[j] - new_roots[k]);
+            if (j != k) denom *= (root - new_roots[k]);
         }
-        CT correction = -horner<CT>(coefs, roots[j]) / denom;
+        CTM correction = -horner<N, M>(coefs, roots[j]) / denom;
         new_roots[j] += correction;
     }
 
     // Compute the absolute difference between each old and new root
     std::vector<double> delta;
-    for (unsigned j = 0; j < roots.size(); ++j)
+    for (int j = 0; j < roots.size(); ++j)
     {
-        double dr = static_cast<double>(roots[j].real() - new_roots[j].real());
-        double di = static_cast<double>(roots[j].imag() - new_roots[j].imag());
+        double dr = static_cast<double>(roots[j].real()) - static_cast<double>(new_roots[j].real());
+        double di = static_cast<double>(roots[j].imag()) - static_cast<double>(new_roots[j].imag());
         delta.push_back(std::sqrt(std::pow(dr, 2.0) + std::pow(di, 2.0)));
     }
 
     return std::make_pair(new_roots, delta);
 }
 
-template <typename CT>
-std::pair<std::vector<CT>, std::vector<double> > aberth(const std::vector<CT>& coefs,
-                                                        const std::vector<CT>& dcoefs,
-                                                        const std::vector<CT>& roots)
+template <unsigned N, unsigned M>
+std::pair<std::vector<number<mpc_complex_backend<M> > >, std::vector<double> >
+    aberth(const std::vector<number<mpfr_float_backend<N> > >& coefs,
+           const std::vector<number<mpfr_float_backend<N> > >& dcoefs,
+           const std::vector<number<mpc_complex_backend<N> > >& roots)
 {
     /*
      * Perform one iteration of the Aberth-Ehrlich method, given the vector 
      * of coefficients corresponding to the polynomial and a vector of 
      * current root approximations.  
      */
+    typedef number<mpc_complex_backend<M> > CTM;
+
     // Perform the Aberth-Ehrlich correction for each root
-    std::vector<CT> new_roots(roots);
-    for (unsigned j = 0; j < roots.size(); ++j)
+    std::vector<CTM> new_roots;
+    for (auto&& root : roots)
     {
-        CT sum = 0.0;
-        for (unsigned k = 0; k < j; ++k)
+        CTM new_root(root);
+        new_roots.push_back(new_root);
+    }
+    for (int j = 0; j < roots.size(); ++j)
+    {
+        CTM root_j(roots[j]);
+        CTM sum = 0.0;
+        for (int k = 0; k < j; ++k)
         {
-            sum += (1.0 / (roots[j] - new_roots[k]));
+            sum += (1.0 / (root_j - new_roots[k]));
         }
-        for (unsigned k = j + 1; k < roots.size(); ++k)
+        for (int k = j + 1; k < roots.size(); ++k)
         {
-            sum += (1.0 / (roots[j] - roots[k])); 
+            CTM root_k(roots[k]);
+            sum += (1.0 / (root_j - root_k));
         }
-        CT val = horner<CT>(coefs, roots[j]) / horner<CT>(dcoefs, roots[j]);
-        CT denom = 1.0 - (val * sum);
-        CT correction = val / denom;
+        CTM value = horner<N, M>(coefs, roots[j]) / horner<N, M>(dcoefs, roots[j]);
+        CTM denom = 1.0 - (value * sum);
+        CTM correction = value / denom;
         new_roots[j] -= correction;
     }
 
     // Compute the absolute difference between each old and new root
     std::vector<double> delta;
-    for (unsigned j = 0; j < roots.size(); ++j)
+    for (int j = 0; j < roots.size(); ++j)
     {
-        double dr = static_cast<double>(roots[j].real() - new_roots[j].real());
-        double di = static_cast<double>(roots[j].imag() - new_roots[j].imag());
+        double dr = static_cast<double>(roots[j].real()) - static_cast<double>(new_roots[j].real());
+        double di = static_cast<double>(roots[j].imag()) - static_cast<double>(new_roots[j].imag());
         delta.push_back(std::sqrt(std::pow(dr, 2.0) + std::pow(di, 2.0)));
     }
     
@@ -239,36 +264,33 @@ std::pair<std::vector<CT>, std::vector<double> > aberth(const std::vector<CT>& c
 bool ccw(std::pair<double, double> x, std::pair<double, double> y, std::pair<double, double> z)
 {
     /*
-     * Determine if x, y, and z make a counterclockwise turn. 
+     * Determine if x, y, and z make a counterclockwise turn in 2-D. 
      */
     double cross = (y.first - x.first) * (z.second - x.second) - (y.second - x.second) * (z.first - x.first);
     return (cross > 0);
 }
 
-std::vector<std::complex<double> > biniInitialize(const Ref<const VectorXd>& coefs,
-                                                  boost::random::mt19937& rng,
-                                                  boost::random::uniform_real_distribution<double>& dist)
+template <unsigned N, unsigned M>
+std::vector<number<mpc_complex_backend<M> > > bini(const std::vector<number<mpfr_float_backend<N> > > coefs,
+                                                   boost::random::mt19937& rng,
+                                                   boost::random::uniform_real_distribution<double>& dist)
 {
     /*
      * Use Bini's initialization to yield a set of initial complex roots 
      * for the given vector of polynomial coefficients. 
      */
-    using std::abs;
-    using std::log2;
-    using std::pow;
-    using std::sin;
-    using std::cos;
-    const double two_pi = 2 * std::acos(-1.0); 
+    typedef number<mpfr_float_backend<N> >  RTM;
+    typedef number<mpc_complex_backend<M> > CTM;
 
     // Find the upper convex hull of the vertices (i, log|f_i|) with 
-    // the Andrew scan
+    // the Andrew scan (use doubles for this computation)
     std::vector<std::pair<double, double> > points;
-    for (unsigned i = 0; i < coefs.size(); ++i)
+    for (int i = 0; i < coefs.size(); ++i)
     {
-        if (abs(coefs(i)) == 0)
+        if (boost::multiprecision::abs(coefs[i]) == 0)
             points.push_back(std::make_pair(i, -std::numeric_limits<double>::infinity()));
         else
-            points.push_back(std::make_pair(i, log2(abs(coefs(i)))));
+            points.push_back(std::make_pair(i, static_cast<double>(boost::multiprecision::log2(boost::multiprecision::abs(coefs[i])))));
     }
     std::vector<std::pair<double, double> > upper_hull;
     for (int i = points.size() - 1; i >= 0; --i)
@@ -279,7 +301,7 @@ std::vector<std::complex<double> > biniInitialize(const Ref<const VectorXd>& coe
     }
 
     // Run through the convex hull vertices, grab their x-coordinates, and sort
-    std::vector<double> hull_x;
+    std::vector<int> hull_x;
     for (auto&& p : upper_hull)
     {
         if (!std::isinf(p.second))
@@ -289,96 +311,84 @@ std::vector<std::complex<double> > biniInitialize(const Ref<const VectorXd>& coe
 
     // Compute u_{k_i} for each vertex in the convex hull
     std::vector<double> u;
-    for (unsigned i = 0; i < hull_x.size() - 1; ++i)
+    for (int i = 0; i < hull_x.size() - 1; ++i)
     {
         int k = hull_x[i];
         int l = hull_x[i+1];
-        u.push_back(pow(abs(coefs(k) / coefs(l)), 1.0 / (l - k)));
+        u.push_back(std::pow(static_cast<double>(boost::multiprecision::abs(coefs[k] / coefs[l])), 1.0 / (l - k)));
     }
 
     // Compute initial root approximations
     // TODO Check that these approximations are correct (how?) on small examples
     int n = coefs.size() - 1;
-    std::vector<std::complex<double> > inits; 
-    for (unsigned i = 0; i < hull_x.size() - 1; ++i)
+    const CTM two_pi(2 * std::acos(-1.0), 0); 
+    std::vector<CTM> inits; 
+    for (int i = 0; i < hull_x.size() - 1; ++i)
     {
         int k = hull_x[i];
         int l = hull_x[i+1];
-        for (unsigned j = 0; j < l - k; ++j)
+        for (int j = 0; j < l - k; ++j)
         {
-            double theta = (two_pi / (l - k)) * j + (two_pi * i / n) + dist(rng);
-            std::complex<double> z(cos(theta), sin(theta));
+            RTM theta = (two_pi / (l - k)) * j + (two_pi * i / n) + dist(rng);
+            CTM z(std::cos(theta), std::sin(theta));
             inits.push_back(u[i] * z);
         }
     }
     return inits;
 }
 
-template <typename T>
+template <unsigned N>
 class Polynomial
 {
     private:
-        unsigned deg;                    // Degree of the polynomial
-        unsigned prec;                   // Maximum number of digits that can
-                                         // be represented by type T 
-        Matrix<T, Dynamic, 1> coefs;     // Coefficients of the polynomial
-                                         // stored in ascending order of power
+        int deg;                    // Degree of the polynomial
+        
+        // Coefficients of the polynomial stored in ascending order of power
+        std::vector<number<mpfr_float_backend<N> > > coefs;
 
-        Matrix<std::complex<T>, Dynamic, 1> rootsWeierstrass(unsigned max_iter,
-                                                             double atol,
-                                                             double rtol,
-                                                             std::vector<std::complex<double> > inits = {})
+        template <unsigned M = N>
+        std::pair<std::vector<number<mpc_complex_backend<M> > >, bool> rootsWeierstrass(int max_iter,
+                                                                                        double atol,
+                                                                                        double rtol)
         {
             /*
-             * Run Weierstrass' method on the given polynomial, returning the 
-             * roots as type std::complex<T>.
+             * Run Weierstrass' method on the given polynomial. 
              */
-            using boost::multiprecision::pow;
-            using boost::multiprecision::abs;
+            typedef number<mpfr_float_backend<M> >  RTM;
+            typedef number<mpc_complex_backend<M> > CTM;
 
             bool converged = false;
             bool quadratic = false;
             bool within_tol = false;
-            unsigned iter = 0;
+            int iter = 0;
 
             // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
-            // if initializations were not specified 
-            if (inits.size() == 0)
-            {
-                for (unsigned i = 0; i < this->deg; ++i)
-                    inits.push_back(std::pow(std::complex<double>(0.4, 0.9), i));
-            }
-            // Throw exception if improper number of initializations were specified
-            else if (inits.size() != this->deg)
-            {
-                throw std::runtime_error("Invalid number of initial roots specified");
-            }
+            // TODO Fix this to work with Bini's initialization?
+            std::vector<CTM> inits;
+            for (int i = 0; i < this->deg; ++i)
+                inits.push_back(boost::multiprecision::pow(CTM(0.4, 0.9), i));
+           
+            // Set up vectors of coefficients and roots at given precision (M) 
+            std::vector<RTM> coefs;
+            for (auto&& coef : this->coefs) coefs.push_back(RTM(coef));
+            std::vector<CTM> roots(inits);
+            std::vector<CTM> new_roots;
 
-            // Start with type std::complex<double>
-            std::vector<std::complex<double> > roots, coefs;
-            for (unsigned i = 0; i < this->deg; ++i)
-            {
-                roots.push_back(inits[i]);
-            }
-            for (unsigned i = 0; i < this->coefs.size(); ++i)
-            {
-                std::complex<double> z(this->coefs(i), 0.0);
-                coefs.push_back(z);
-            }
             // Run the algorithm until all roots exhibit quadratic convergence
             // or the desired number of iterations is reached
             std::vector<double> delta, new_delta;
-            for (unsigned i = 0; i < this->deg; ++i) delta.push_back(0.0);
+            for (int i = 0; i < this->deg; ++i) delta.push_back(0.0);
             while (iter < max_iter && !converged)
             {
-                auto result = weierstrass<std::complex<double> >(coefs, roots);
-                std::vector<std::complex<double> > new_roots = result.first;
+                std::pair<std::vector<CTM>, std::vector<double> > result = weierstrass<M, M>(coefs, roots);
+                new_roots = result.first;
                 new_delta = result.second;
                 iter++;
+
                 // Check that the change is less than the square of the 
                 // previous change for each root
                 quadratic = true;
-                for (unsigned j = 0; j < this->deg; ++j)
+                for (int j = 0; j < this->deg; ++j)
                 {
                     if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
                     {
@@ -388,293 +398,68 @@ class Polynomial
                 }
                 // Check that the change is within the given tolerances
                 within_tol = true;
-                for (unsigned j = 0; j < this->deg; ++j)
+                for (int j = 0; j < this->deg; ++j)
                 {
-                    if (new_delta[j] > atol + rtol * std::abs(roots[j]))
+                    if (new_delta[j] > atol + rtol * boost::multiprecision::abs(roots[j]))
                     {
                         within_tol = false;
                         break;
                     }
                 }
-                if (quadratic || within_tol) converged = true;
+                if (quadratic || within_tol) converged = true; // TODO Want both?
                 roots = new_roots;
                 delta = new_delta;
             }
 
-            // If not converged, try again with a type with greater precision
-            unsigned prec = 17;
-            while (!converged)
-            {
-                if (prec < 30)
-                {
-                    // Re-do the same calculations with mpc_30
-                    prec = 30; iter = 0;
-                    std::vector<mpc_30> roots2, coefs2;
-                    for (unsigned i = 0; i < this->deg; ++i)
-                    {
-                        roots2.push_back(mpc_30(roots[i].real(), roots[i].imag()));
-                        delta[i] = 0.0;
-                    }
-                    for (unsigned i = 0; i < this->coefs.size(); ++i)
-                    {
-                        std::stringstream ss;
-                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
-                        mpc_30 z(ss.str(), 0.0);
-                        coefs2.push_back(z);
-                    }
-                    while (iter < max_iter && !converged)
-                    {
-                        auto result = weierstrass<mpc_30>(coefs2, roots2);
-                        std::vector<mpc_30> new_roots = result.first;
-                        new_delta = result.second;
-                        iter++;
-                        quadratic = true;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
-                            {
-                                quadratic = false;
-                                break;
-                            }
-                        }
-                        within_tol = true;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
-                            {
-                                within_tol = false;
-                                break;
-                            }
-                        }
-                        if (quadratic || within_tol) converged = true;
-                        roots2 = new_roots;
-                        delta = new_delta;
-                    }
-                    for (unsigned i = 0; i < this->deg; ++i)
-                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
-                }
-                else if (prec < 60)
-                {
-                    // Re-do the same calculations with mpc_60
-                    prec = 60; iter = 0;
-                    std::vector<mpc_60> roots2, coefs2;
-                    for (unsigned i = 0; i < this->deg; ++i)
-                    {
-                        roots2.push_back(mpc_60(roots[i].real(), roots[i].imag()));
-                        delta[i] = 0.0;
-                    }
-                    for (unsigned i = 0; i < this->coefs.size(); ++i)
-                    {
-                        std::stringstream ss;
-                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
-                        mpc_60 z(ss.str(), 0.0);
-                        coefs2.push_back(z);
-                    }
-                    while (iter < max_iter && !converged)
-                    {
-                        auto result = weierstrass<mpc_60>(coefs2, roots2);
-                        std::vector<mpc_60> new_roots = result.first;
-                        new_delta = result.second;
-                        iter++;
-                        quadratic = true;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
-                            {
-                                quadratic = false;
-                                break;
-                            }
-                        }
-                        within_tol = true;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
-                            {
-                                within_tol = false;
-                                break;
-                            }
-                        }
-                        if (quadratic || within_tol) converged = true;
-                        roots2 = new_roots;
-                        delta = new_delta;
-                    }
-                    for (unsigned i = 0; i < this->deg; ++i)
-                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
-                }
-                else if (prec < 100)
-                {
-                    // Re-do the same calculations with mpc_100
-                    prec = 100; iter = 0;
-                    std::vector<mpc_100> roots2, coefs2;
-                    for (unsigned i = 0; i < this->deg; ++i)
-                    {
-                        roots2.push_back(mpc_100(roots[i].real(), roots[i].imag()));
-                        delta[i] = 0.0;
-                    }
-                    for (unsigned i = 0; i < this->coefs.size(); ++i)
-                    {
-                        std::stringstream ss;
-                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
-                        mpc_100 z(ss.str(), 0.0);
-                        coefs2.push_back(z);
-                    }
-                    while (iter < max_iter && !converged)
-                    {
-                        auto result = weierstrass<mpc_100>(coefs2, roots2);
-                        std::vector<mpc_100> new_roots = result.first;
-                        new_delta = result.second;
-                        iter++;
-                        quadratic = true;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
-                            {
-                                quadratic = false;
-                                break;
-                            }
-                        }
-                        within_tol = true;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
-                            {
-                                within_tol = false;
-                                break;
-                            }
-                        }
-                        if (quadratic || within_tol) converged = true;
-                        roots2 = new_roots;
-                        delta = new_delta;
-                    }
-                    for (unsigned i = 0; i < this->deg; ++i)
-                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
-                }
-                else if (prec < 200)
-                {
-                    // Re-do the same calculations with mpc_200
-                    prec = 200; iter = 0;
-                    std::vector<mpc_200> roots2, coefs2;
-                    for (unsigned i = 0; i < this->deg; ++i)
-                    {
-                        roots2.push_back(mpc_200(roots[i].real(), roots[i].imag()));
-                        delta[i] = 0.0;
-                    }
-                    for (unsigned i = 0; i < this->coefs.size(); ++i)
-                    {
-                        std::stringstream ss;
-                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
-                        mpc_200 z(ss.str(), 0.0);
-                        coefs2.push_back(z);
-                    }
-                    while (iter < max_iter && !converged)
-                    {
-                        auto result = weierstrass<mpc_200>(coefs2, roots2);
-                        std::vector<mpc_200> new_roots = result.first;
-                        new_delta = result.second;
-                        iter++;
-                        quadratic = true;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
-                            {
-                                quadratic = false;
-                                break;
-                            }
-                        }
-                        within_tol = true;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
-                            {
-                                within_tol = false;
-                                break;
-                            }
-                        }
-                        if (quadratic || within_tol) converged = true;
-                        roots2 = new_roots;
-                        delta = new_delta;
-                    }
-                    for (unsigned i = 0; i < this->deg; ++i)
-                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
-                }
-                else
-                {
-                    // Give up at this point (don't throw an exception here, 
-                    // as polynomials with singular roots will be encountered)
-                    converged = true;
-                }
-            }
-
-            Matrix<std::complex<T>, Dynamic, 1> final_roots(this->deg);
-            for (unsigned i = 0; i < this->deg; ++i)
-            {
-                std::complex<T> z(static_cast<T>(roots[i].real()), static_cast<T>(roots[i].imag()));
-                final_roots(i) = z;
-            }
-            return final_roots;
+            return std::make_pair(roots, converged);
         }
 
-        Matrix<std::complex<T>, Dynamic, 1> rootsAberth(unsigned max_iter,
-                                                        double atol,
-                                                        double rtol,
-                                                        unsigned sharpen_iter = 20,
-                                                        std::vector<std::complex<double> > inits = {})
+        template <unsigned M = N>
+        std::pair<std::vector<number<mpc_complex_backend<M> > >, bool> rootsAberth(int max_iter,
+                                                                                   double atol,
+                                                                                   double rtol)
         {
             /*
-             * Run the Aberth-Ehrlich method on the given polynomial, returning the 
-             * roots as type std::complex<T>.
+             * Run the Aberth-Ehrlich method on the given polynomial.
              */
-            using boost::multiprecision::pow;
-            using boost::multiprecision::abs;
+            typedef number<mpfr_float_backend<M> >  RTM;
+            typedef number<mpc_complex_backend<M> > CTM;
 
             bool converged = false;
             bool quadratic = false;
             bool within_tol = false;
-            unsigned iter = 0;
+            int iter = 0;
 
             // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
-            // if initializations were not specified 
-            if (inits.size() == 0)
+            // TODO Fix this to work with Bini's initialization?
+            std::vector<CTM> inits;
+            for (int i = 0; i < this->deg; ++i)
+                inits.push_back(boost::multiprecision::pow(CTM(0.4, 0.9), i));
+           
+            // Set up vectors of coefficients and roots at given precision (M)
+            std::vector<RTM> coefs, dcoefs;
+            for (int i = 0; i < this->coefs.size(); ++i)
             {
-                for (unsigned i = 0; i < this->deg; ++i)
-                    inits.push_back(std::pow(std::complex<double>(0.4, 0.9), i));
+                coefs.push_back(RTM(coefs[i]));
+                dcoefs.push_back(RTM(i * coefs[i+1]));
             }
-            // Throw exception if improper number of initializations were specified
-            else if (inits.size() != this->deg)
-            {
-                throw std::runtime_error("Invalid number of initial roots specified");
-            }
+            std::vector<CTM> roots(inits);
+            std::vector<CTM> new_roots;
 
-            // Start with type std::complex<double>
-            VectorXd dcoefvec = this->diff().coefficients();
-            std::vector<std::complex<double> > roots, coefs, dcoefs;
-            for (unsigned i = 0; i < this->deg; ++i)
-            {
-                roots.push_back(inits[i]);
-            }
-            for (unsigned i = 0; i < this->coefs.size(); ++i)
-            {
-                std::complex<double> z(this->coefs(i), 0.0);
-                coefs.push_back(z);
-            }
-            for (unsigned i = 0; i < dcoefvec.size(); ++i)
-            {
-                std::complex<double> z(dcoefvec(i), 0.0);
-                dcoefs.push_back(z);
-            }
             // Run the algorithm until all roots exhibit quadratic convergence
             // or the desired number of iterations is reached
             std::vector<double> delta, new_delta;
-            for (unsigned i = 0; i < this->deg; ++i) delta.push_back(0.0);
+            for (int i = 0; i < this->deg; ++i) delta.push_back(0.0);
             while (iter < max_iter && !converged)
             {
-                auto result = aberth<std::complex<double> >(coefs, dcoefs, roots);
-                std::vector<std::complex<double> > new_roots = result.first;
+                std::pair<std::vector<CTM>, std::vector<double> > result = aberth<M, M>(coefs, dcoefs, roots);
+                new_roots = result.first;
                 new_delta = result.second;
                 iter++;
+
                 // Check that the change is less than the square of the 
                 // previous change for each root
-                for (unsigned j = 0; j < this->deg; ++j)
+                for (int j = 0; j < this->deg; ++j)
                 {
                     quadratic = true;
                     if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
@@ -685,284 +470,26 @@ class Polynomial
                 }
                 // Check that the change is within the given tolerances
                 within_tol = true;
-                for (unsigned j = 0; j < this->deg; ++j)
+                for (int j = 0; j < this->deg; ++j)
                 {
-                    if (new_delta[j] > atol + rtol * abs(roots[j]))
+                    if (new_delta[j] > atol + rtol * boost::multiprecision::abs(roots[j]))
                     {
                         within_tol = false;
                         break;
                     }
                 }
-                if (quadratic || within_tol) converged = true;
+                if (quadratic || within_tol) converged = true;  // TODO Want both?
                 roots = new_roots;
                 delta = new_delta;
             }
             // Sharpen each root for the given number of iterations 
-            for (unsigned i = 0; i < sharpen_iter; ++i)
-            {
-                auto result = newton<std::complex<double> >(coefs, dcoefs, roots);
-                roots = result.first;
-            }
+            //for (unsigned i = 0; i < sharpen_iter; ++i)
+            //{
+            //    auto result = newton<std::complex<double> >(coefs, dcoefs, roots);
+            //    roots = result.first;
+            //}
 
-            // If not converged, try again with a type with greater precision
-            unsigned prec = 17;
-            while (!converged)
-            {
-                if (prec < 30)
-                {
-                    // Re-do the same calculations with mpc_30
-                    prec = 30; iter = 0;
-                    std::vector<mpc_30> roots2, coefs2, dcoefs2;
-                    for (unsigned i = 0; i < this->deg; ++i)
-                    {
-                        roots2.push_back(mpc_30(roots[i].real(), roots[i].imag()));
-                        delta[i] = 0.0;
-                    }
-                    for (unsigned i = 0; i < this->coefs.size(); ++i)
-                    {
-                        std::stringstream ss;
-                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
-                        mpc_30 z(ss.str(), "0.0");
-                        coefs2.push_back(z);
-                    }
-                    for (unsigned i = 0; i < dcoefvec.size(); ++i)
-                    {
-                        std::stringstream ss;
-                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << dcoefvec(i);
-                        mpc_30 z(ss.str(), "0.0");
-                        dcoefs2.push_back(z);
-                    }
-                    while (iter < max_iter && !converged)
-                    {
-                        auto result = aberth<mpc_30>(coefs2, dcoefs2, roots2);
-                        std::vector<mpc_30> new_roots = result.first;
-                        new_delta = result.second;
-                        iter++;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            quadratic = true;
-                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
-                            {
-                                quadratic = false;
-                                break;
-                            }
-                        }
-                        within_tol = true;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
-                            {
-                                within_tol = false;
-                                break;
-                            }
-                        }
-                        if (quadratic || within_tol) converged = true;
-                        roots2 = new_roots;
-                        delta = new_delta;
-                    }
-                    for (unsigned i = 0; i < sharpen_iter; ++i)
-                    {
-                        auto result = newton<mpc_30>(coefs2, dcoefs2, roots2);
-                        roots2 = result.first;
-                    }
-                    for (unsigned i = 0; i < this->deg; ++i)
-                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
-                }
-                else if (prec < 60)
-                {
-                    // Re-do the same calculations with mpc_60
-                    prec = 60; iter = 0;
-                    std::vector<mpc_60> roots2, coefs2, dcoefs2;
-                    for (unsigned i = 0; i < this->deg; ++i)
-                    {
-                        roots2.push_back(mpc_60(roots[i].real(), roots[i].imag()));
-                        delta[i] = 0.0;
-                    }
-                    for (unsigned i = 0; i < this->coefs.size(); ++i)
-                    {
-                        std::stringstream ss;
-                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
-                        mpc_60 z(ss.str(), 0.0);
-                        coefs2.push_back(z);
-                    }
-                    for (unsigned i = 0; i < dcoefvec.size(); ++i)
-                    {
-                        std::stringstream ss;
-                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << dcoefvec(i);
-                        mpc_60 z(ss.str(), "0.0");
-                        dcoefs2.push_back(z);
-                    }
-                    while (iter < max_iter && !converged)
-                    {
-                        auto result = aberth<mpc_60>(coefs2, dcoefs2, roots2);
-                        std::vector<mpc_60> new_roots = result.first;
-                        new_delta = result.second;
-                        iter++;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            quadratic = true;
-                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
-                            {
-                                quadratic = false;
-                                break;
-                            }
-                        }
-                        within_tol = true;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
-                            {
-                                within_tol = false;
-                                break;
-                            }
-                        }
-                        if (quadratic || within_tol) converged = true;
-                        roots2 = new_roots;
-                        delta = new_delta;
-                    }
-                    for (unsigned i = 0; i < sharpen_iter; ++i)
-                    {
-                        auto result = newton<mpc_60>(coefs2, dcoefs2, roots2);
-                        roots2 = result.first;
-                    }
-                    for (unsigned i = 0; i < this->deg; ++i)
-                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
-                }
-                else if (prec < 100)
-                {
-                    // Re-do the same calculations with mpc_100
-                    prec = 100; iter = 0;
-                    std::vector<mpc_100> roots2, coefs2, dcoefs2;
-                    for (unsigned i = 0; i < this->deg; ++i)
-                    {
-                        roots2.push_back(mpc_100(roots[i].real(), roots[i].imag()));
-                        delta[i] = 0.0;
-                    }
-                    for (unsigned i = 0; i < this->coefs.size(); ++i)
-                    {
-                        std::stringstream ss;
-                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
-                        mpc_100 z(ss.str(), 0.0);
-                        coefs2.push_back(z);
-                    }
-                    for (unsigned i = 0; i < dcoefvec.size(); ++i)
-                    {
-                        std::stringstream ss;
-                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << dcoefvec(i);
-                        mpc_100 z(ss.str(), "0.0");
-                        dcoefs2.push_back(z);
-                    }
-                    while (iter < max_iter && !converged)
-                    {
-                        auto result = aberth<mpc_100>(coefs2, dcoefs2, roots2);
-                        std::vector<mpc_100> new_roots = result.first;
-                        new_delta = result.second;
-                        iter++;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            quadratic = true;
-                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
-                            {
-                                quadratic = false;
-                                break;
-                            }
-                        }
-                        within_tol = true;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
-                            {
-                                within_tol = false;
-                                break;
-                            }
-                        }
-                        if (quadratic || within_tol) converged = true;
-                        roots2 = new_roots;
-                        delta = new_delta;
-                    }
-                    for (unsigned i = 0; i < sharpen_iter; ++i)
-                    {
-                        auto result = newton<mpc_100>(coefs2, dcoefs2, roots2);
-                        roots2 = result.first;
-                    }
-                    for (unsigned i = 0; i < this->deg; ++i)
-                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
-                }
-                else if (prec < 200)
-                {
-                    // Re-do the same calculations with mpc_200
-                    prec = 200; iter = 0;
-                    std::vector<mpc_200> roots2, coefs2, dcoefs2;
-                    for (unsigned i = 0; i < this->deg; ++i)
-                    {
-                        roots2.push_back(mpc_200(roots[i].real(), roots[i].imag()));
-                        delta[i] = 0.0;
-                    }
-                    for (unsigned i = 0; i < this->coefs.size(); ++i)
-                    {
-                        std::stringstream ss;
-                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << this->coefs(i);
-                        mpc_200 z(ss.str(), 0.0);
-                        coefs2.push_back(z);
-                    }
-                    for (unsigned i = 0; i < dcoefvec.size(); ++i)
-                    {
-                        std::stringstream ss;
-                        ss << std::setprecision(std::numeric_limits<T>::max_digits10) << dcoefvec(i);
-                        mpc_200 z(ss.str(), 0.0);
-                        dcoefs2.push_back(z);
-                    }
-                    while (iter < max_iter && !converged)
-                    {
-                        auto result = aberth<mpc_200>(coefs2, dcoefs2, roots2);
-                        std::vector<mpc_200> new_roots = result.first;
-                        new_delta = result.second;
-                        iter++;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            quadratic = true;
-                            if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
-                            {
-                                quadratic = false;
-                                break;
-                            }
-                        }
-                        within_tol = true;
-                        for (unsigned j = 0; j < this->deg; ++j)
-                        {
-                            if (new_delta[j] > atol + rtol * abs(roots2[j]))
-                            {
-                                within_tol = false;
-                                break;
-                            }
-                        }
-                        if (quadratic || within_tol) converged = true;
-                        roots2 = new_roots;
-                        delta = new_delta;
-                    }
-                    for (unsigned i = 0; i < sharpen_iter; ++i)
-                    {
-                        auto result = newton<mpc_200>(coefs2, dcoefs2, roots2);
-                        roots2 = result.first;
-                    }
-                    for (unsigned i = 0; i < this->deg; ++i)
-                        roots[i] = static_cast<std::complex<double> >(roots2[i]);
-                }
-                else
-                {
-                    // Give up at this point (don't throw an exception here, 
-                    // as polynomials with singular roots will be encountered)
-                    converged = true;
-                }
-            }
-
-            Matrix<std::complex<T>, Dynamic, 1> final_roots(this->deg);
-            for (unsigned i = 0; i < this->deg; ++i)
-            {
-                std::complex<T> z(static_cast<T>(roots[i].real()), static_cast<T>(roots[i].imag()));
-                final_roots(i) = z;
-            }
-            return final_roots;
+            return std::make_pair(roots, converged);
         }
 
 
@@ -973,28 +500,46 @@ class Polynomial
              * Empty constructor for the zero polynomial.
              */
             this->deg = 0;
-            this->coefs = Matrix<T, Dynamic, 1>::Zero(1);
-            this->prec = std::numeric_limits<T>::max_digits10;
+            this->coefs.push_back(0.0);
         }
 
-        Polynomial(const T coef)
+        Polynomial(const double coef)
+        {
+            /*
+             * Constructor with user-specified double constant.
+             */
+            this->deg = 0;
+            this->coefs.push_back(number<mpfr_float_backend<N> >(coef));
+        }
+
+        Polynomial(const number<mpfr_float_backend<N> > coef)
         {
             /*
              * Constructor with user-specified constant.
              */
             this->deg = 0;
-            this->coefs = Matrix<T, Dynamic, 1>::Constant(1, 1, coef);
-            this->prec = std::numeric_limits<T>::max_digits10;
+            this->coefs.push_back(coef);
         }
 
-        Polynomial(const Ref<const Matrix<T, Dynamic, 1> >& coefs)
+        Polynomial(const std::vector<double> coefs)
         {
             /*
-             * Constructor with user-specified coefficients.
+             * Constructor with user-specified vector of double coefficients.
              */
-            this->coefs = removeTrailingZeros<T>(coefs);
+            typedef number<mpfr_float_backend<N> > RTN;
+
+            for (auto&& coef : coefs) this->coefs.push_back(RTN(coef));
+            this->coefs = removeTrailingZeros<RTN>(this->coefs);
             this->deg = this->coefs.size() - 1;
-            this->prec = std::numeric_limits<T>::max_digits10;
+        }
+
+        Polynomial(const std::vector<number<mpfr_float_backend<N> > > coefs)
+        {
+            /*
+             * Constructor with user-specified vector of coefficients.
+             */
+            this->coefs = removeTrailingZeros<number<mpfr_float_backend<N> > >(coefs);
+            this->deg = this->coefs.size() - 1;
         }
 
         ~Polynomial()
@@ -1004,7 +549,7 @@ class Polynomial
              */
         }
 
-        unsigned degree() const
+        int degree() const
         {
             /*
              * Return the degree of this polynomial.
@@ -1012,7 +557,7 @@ class Polynomial
             return this->deg;
         }
 
-        Matrix<T, Dynamic, 1> coefficients() const
+        std::vector<number<mpfr_float_backend<N> > > coefficients() const
         {
             /*
              * Return the coefficients of this polynomial.
@@ -1020,334 +565,395 @@ class Polynomial
             return this->coefs;
         }
 
-        T eval(T x) const
+        template <unsigned M = N, unsigned P = N>
+        number<mpfr_float_backend<P> > eval(const number<mpfr_float_backend<M> > x) const
         {
             /*
-             * Return the value obtained by evaluating the polynomial at x.
-             *
-             * Horner's method: starting with the last (highest-degree)
-             * coefficient, recursively do the following:
-             * 1) Multiply by x
-             * 2) Add by the previous coefficient
+             * Return the value obtained by evaluating the polynomial at the
+             * given (real) value x.
              */
-            T y = this->coefs(this->deg);
-            for (int i = this->deg - 1; i >= 0; --i)
-            {
-                y *= x;
-                y += this->coefs(i);
-            }
-            return y;
+            return horner<N, P>(this->coefs, number<mpc_complex_backend<N> >(x, 0)).real();
         }
 
-        std::complex<T> eval(std::complex<T> x) const
+        template <unsigned M = N, unsigned P = N>
+        number<mpc_complex_backend<P> > eval(const number<mpc_complex_backend<M> > x) const
         {
             /*
-             * Return the value obtained by evaluating the polynomial at x
-             * with Horner's method.
+             * Return the value obtained by evaluating the polynomial at the
+             * given (complex) value x.
              */
-            std::complex<T> y(this->coefs(this->deg), 0.0);
-            for (int i = this->deg - 1; i >= 0; --i)
-            {
-                y *= x;
-                y += this->coefs(i);
-            }
-            return y;
+            return horner<N, P>(this->coefs, number<mpc_complex_backend<N> >(x));
         }
 
-        Matrix<T, Dynamic, 1> eval(const Ref<const Matrix<T, Dynamic, 1> >& x) const
+        template <unsigned M = N, unsigned P = N>
+        std::vector<number<mpfr_float_backend<P> > > eval(const std::vector<number<mpfr_float_backend<M> > >& x) const
         {
             /*
              * Return the vector of values obtained by evaluating the polynomial
-             * at each coordinate of the vector x.
+             * at each (real) value in the given vector x.
              */
-            Array<T, Dynamic, 1> y = Array<T, Dynamic, 1>::Constant(x.size(), 1, this->coefs(this->deg));
-            for (int i = this->deg - 1; i >= 0; --i)
-            {
-                y *= x.array();
-                y += this->coefs(i);
-            }
-            return y.matrix();
+            std::vector<number<mpfr_float_backend<P> > > values;
+            for (auto&& y : x)
+                values.push_back(horner<N, P>(this->coefs, number<mpc_complex_backend<N> >(y, 0)).real());
+            
+            return values;
         }
 
-        Polynomial operator+(const Polynomial<T>& q) const 
+        template <unsigned M = N, unsigned P = N>
+        std::vector<number<mpc_complex_backend<P> > > eval(const std::vector<number<mpc_complex_backend<M> > >& x) const
+        {
+            /*
+             * Return the vector of values obtained by evaluating the polynomial
+             * at each (complex) value in the given vector x.
+             */
+            std::vector<number<mpc_complex_backend<P> > > values;
+            for (auto&& y : x)
+                values.push_back(horner<N, P>(this->coefs, number<mpc_complex_backend<N> >(y)));
+            
+            return values;
+        }
+
+        template <unsigned M = N, unsigned P = N>
+        Polynomial<P> operator+(const Polynomial<M>& q) const 
         {
             /*
              * Return the result of adding by q. 
              */
-            // Copy over the coefficients into new vectors and resize 
-            // as necessary 
-            Matrix<T, Dynamic, 1> p_coefs(this->coefs);
-            Matrix<T, Dynamic, 1> q_coefs(q.coefficients());
+            typedef number<mpfr_float_backend<P> > RTP;
+
+            // Copy over the coefficients into new vectors with the output
+            // precision (P) and resize as necessary 
+            std::vector<RTP> p_coefs, q_coefs;
+            for (auto&& coef : this->coefs)      p_coefs.push_back(RTP(coef));
+            for (auto&& coef : q.coefficients()) q_coefs.push_back(RTP(coef));
             if (this->deg > q.degree())
-                q_coefs = appendZeros<T>(q_coefs, this->deg - q.degree());
+                q_coefs = appendZeros<RTP>(q_coefs, this->deg - q.degree());
             else if (this->deg < q.degree())
-                p_coefs = appendZeros<T>(p_coefs, q.degree() - this->deg);
+                p_coefs = appendZeros<RTP>(p_coefs, q.degree() - this->deg);
 
             // Instantiate the sum polynomial
-            return Polynomial(p_coefs + q_coefs);
+            std::vector<RTP> sum_coefs;
+            for (int i = 0; i < p_coefs.size(); ++i)
+                sum_coefs.push_back(p_coefs[i] + q_coefs[i]);
+
+            return Polynomial<P>(sum_coefs);
         }
 
-        Polynomial operator+(const T s) const
+        template <unsigned M = N, unsigned P = N>
+        Polynomial<P> operator+(const number<mpfr_float_backend<M> > s) const
         {
             /*
              * Return the result of adding by scalar s.
              */
-            Matrix<T, Dynamic, 1> p_coefs(this->coefs);
-            p_coefs(0) += s;
-            return Polynomial(p_coefs);
+            typedef number<mpfr_float_backend<P> > RTP;
+
+            std::vector<RTP> sum_coefs;
+            sum_coefs.push_back(RTP(this->coefs[0]) + RTP(s));
+            for (int i = 1; i < this->coefs.size(); ++i)
+                sum_coefs.push_back(RTP(this->coefs[i]));
+
+            return Polynomial<P>(sum_coefs);
         }
 
-        Polynomial& operator+=(const Polynomial<T>& q)
+        Polynomial& operator+=(const Polynomial<N>& q)
         {
             /*
              * In-place addition by q.
+             *
+             * Note that the precision of the input polynomial must match 
+             * that of the current polynomial. 
              */
+            typedef number<mpfr_float_backend<N> > RTN;
+
             // Copy over the coefficients into new vectors and resize 
             // as necessary 
-            Matrix<T, Dynamic, 1> p_coefs(this->coefs);
-            Matrix<T, Dynamic, 1> q_coefs(q.coefficients());
+            std::vector<RTN> p_coefs(this->coefs);
+            std::vector<RTN> q_coefs(q.coefficients());
             if (this->deg > q.degree())
-                q_coefs = appendZeros<T>(q_coefs, this->deg - q.degree());
+                q_coefs = appendZeros<RTN>(q_coefs, this->deg - q.degree());
             else if (this->deg < q.degree())
-                p_coefs = appendZeros<T>(p_coefs, q.degree() - this->deg);
+                p_coefs = appendZeros<RTN>(p_coefs, q.degree() - this->deg);
 
             // Update polynomial coefficients
-            this->coefs = removeTrailingZeros<T>(p_coefs + q_coefs);
+            for (int i = 0; i < p_coefs.size(); ++i)
+                p_coefs[i] += q_coefs[i];
+            this->coefs = removeTrailingZeros<RTN>(p_coefs);
             this->deg = this->coefs.size() - 1;
             return *this;
         }
 
-        Polynomial& operator+=(const T s)
+        Polynomial& operator+=(const number<mpfr_float_backend<N> > s)
         {
             /*
              * In-place addition by scalar s.
+             *
+             * Note that the precision of the input scalar must match that 
+             * of the current polynomial. 
              */
-            this->coefs(0) += s;
+            this->coefs[0] += s;
             return *this;
         }
 
-        Polynomial operator-(const Polynomial<T>& q) const
+        template <unsigned M = N, unsigned P = N>
+        Polynomial<P> operator-(const Polynomial<M>& q) const
         {
             /*
              * Return the result of subtracting by q. 
              */
-            // Copy over the coefficients into new vectors and resize 
-            // as necessary 
-            Matrix<T, Dynamic, 1> p_coefs(this->coefs);
-            Matrix<T, Dynamic, 1> q_coefs(q.coefficients());
+            typedef number<mpfr_float_backend<P> > RTP;
+
+            // Copy over the coefficients into new vectors with the output
+            // precision (P) and resize as necessary 
+            std::vector<RTP> p_coefs, q_coefs;
+            for (auto&& coef : this->coefs)      p_coefs.push_back(RTP(coef));
+            for (auto&& coef : q.coefficients()) q_coefs.push_back(RTP(coef));
             if (this->deg > q.degree())
-                q_coefs = appendZeros<T>(q_coefs, this->deg - q.degree());
+                q_coefs = appendZeros<RTP>(q_coefs, this->deg - q.degree());
             else if (this->deg < q.degree())
-                p_coefs = appendZeros<T>(p_coefs, q.degree() - this->deg);
+                p_coefs = appendZeros<RTP>(p_coefs, q.degree() - this->deg);
 
             // Instantiate the difference polynomial
-            return Polynomial(p_coefs - q_coefs);
+            std::vector<RTP> diff_coefs;
+            for (int i = 0; i < p_coefs.size(); ++i)
+                diff_coefs.push_back(p_coefs[i] - q_coefs[i]);
+
+            return Polynomial<P>(diff_coefs);
         }
 
-        Polynomial operator-(const T s) const
+        template <unsigned M = N, unsigned P = N>
+        Polynomial<P> operator-(const number<mpfr_float_backend<M> > s) const
         {
             /*
              * Return the result of subtracting by scalar s.
              */
-            Matrix<T, Dynamic, 1> p_coefs(this->coefs);
-            p_coefs(0) -= s;
-            return Polynomial(p_coefs);
+            typedef number<mpfr_float_backend<P> > RTP;
+
+            std::vector<RTP> diff_coefs;
+            diff_coefs.push_back(RTP(this->coefs[0]) + RTP(s));
+            for (int i = 1; i < this->coefs.size(); ++i)
+                diff_coefs.push_back(RTP(this->coefs[i]));
+
+            return Polynomial<P>(diff_coefs);
         }
 
-        Polynomial& operator-=(const Polynomial<T>& q) 
+        Polynomial& operator-=(const Polynomial<N>& q) 
         {
             /*
              * In-place subtraction by q.
+             *
+             * Note that the precision of the input polynomial must match 
+             * that of the current polynomial. 
              */
+            typedef number<mpfr_float_backend<N> > RTN;
+
             // Copy over the coefficients into new vectors and resize 
             // as necessary 
-            Matrix<T, Dynamic, 1> p_coefs(this->coefs);
-            Matrix<T, Dynamic, 1> q_coefs(q.coefficients());
+            std::vector<RTN> p_coefs(this->coefs);
+            std::vector<RTN> q_coefs(q.coefficients());
             if (this->deg > q.degree())
-                q_coefs = appendZeros<T>(q_coefs, this->deg - q.degree());
+                q_coefs = appendZeros<RTN>(q_coefs, this->deg - q.degree());
             else if (this->deg < q.degree())
-                p_coefs = appendZeros<T>(p_coefs, q.degree() - this->deg);
+                p_coefs = appendZeros<RTN>(p_coefs, q.degree() - this->deg);
 
             // Update polynomial coefficients
-            this->coefs = removeTrailingZeros<T>(p_coefs - q_coefs);
+            for (int i = 0; i < p_coefs.size(); ++i)
+                p_coefs[i] += q_coefs[i];
+            this->coefs = removeTrailingZeros<RTN>(p_coefs);
             this->deg = this->coefs.size() - 1;
             return *this;
         }
 
-        Polynomial& operator-=(const T s)
+        Polynomial& operator-=(const number<mpfr_float_backend<N> > s)
         {
             /*
              * In-place subtraction by scalar s.
+             *
+             * Note that the precision of the input scalar must match that 
+             * of the current polynomial. 
              */
-            this->coefs(0) -= s;
+            this->coefs[0] -= s;
             return *this;
         }
 
-        Polynomial operator*(const Polynomial<T>& q) const
+        template <unsigned M = N, unsigned P = N>
+        Polynomial<P> operator*(const Polynomial<M>& q) const
         {
             /*
              * Return the result of multiplying by q.
              *
              * TODO Replace with a method based on FFT. 
              */
-            unsigned p_deg = this->deg;
-            unsigned q_deg = q.degree();
-            Matrix<T, Dynamic, 1> q_coefs = q.coefficients();
-            Matrix<T, Dynamic, 1> pq_coefs = Matrix<T, Dynamic, 1>::Zero(p_deg + q_deg + 1);
-            for (unsigned i = 0; i <= p_deg; ++i)
+            typedef number<mpfr_float_backend<M> > RTM;
+            typedef number<mpfr_float_backend<P> > RTP;
+
+            int p_deg = this->deg;
+            int q_deg = q.degree();
+            std::vector<RTM> q_coefs = q.coefficients();
+            std::vector<RTP> pq_coefs;
+            for (int i = 0; i < p_deg + q_deg + 1; ++i) pq_coefs.push_back(0.0);
+            for (int i = 0; i <= p_deg; ++i)
             {
-                for (unsigned j = 0; j <= q_deg; ++j)
+                for (int j = 0; j <= q_deg; ++j)
                 {
-                    pq_coefs(i + j) += this->coefs(i) * q_coefs(j);
+                    pq_coefs[i + j] += RTP(this->coefs[i]) * RTP(q_coefs[j]);
                 }
             }
-            return Polynomial(pq_coefs);
+            return Polynomial<P>(pq_coefs);
         }
 
-        Polynomial operator*(const T s) const
+        template <unsigned M = N, unsigned P = N>
+        Polynomial<P> operator*(const number<mpfr_float_backend<M> > s) const
         {
             /*
              * Return the result of multiplying by scalar s.
              */
-            Matrix<T, Dynamic, 1> p_coefs(this->coefs);
-            p_coefs *= s;
-            return Polynomial(p_coefs);
+            typedef number<mpfr_float_backend<P> > RTP;
+
+            std::vector<RTP> p_coefs;
+            for (auto&& coef : this->coefs) p_coefs.push_back(RTP(coef) * RTP(s));
+            return Polynomial<P>(p_coefs);
         }
 
-        Polynomial& operator*=(const Polynomial<T>& q) 
+        Polynomial& operator*=(const Polynomial<N>& q) 
         {
             /*
              * In-place multiplication by q.
              *
+             * Note that the precision of the input polynomial must match 
+             * that of the current polynomial.
+             *
              * TODO Replace with a method based on FFT. 
              */
-            unsigned p_deg = this->deg;
-            unsigned q_deg = q.degree();
-            Matrix<T, Dynamic, 1> q_coefs = q.coefficients();
-            Matrix<T, Dynamic, 1> pq_coefs = Matrix<T, Dynamic, 1>::Zero(p_deg + q_deg + 1);
-            for (unsigned i = 0; i <= p_deg; ++i)
+            typedef number<mpfr_float_backend<N> > RTN;
+
+            int p_deg = this->deg;
+            int q_deg = q.degree();
+            std::vector<RTN> q_coefs = q.coefficients();
+            std::vector<RTN> pq_coefs;
+            for (int i = 0; i < p_deg + q_deg + 1; ++i) pq_coefs.push_back(0.0);
+            for (int i = 0; i <= p_deg; ++i)
             {
-                for (unsigned j = 0; j <= q_deg; ++j)
+                for (int j = 0; j <= q_deg; ++j)
                 {
-                    pq_coefs(i + j) += this->coefs(i) * q_coefs(j);
+                    pq_coefs[i + j] += this->coefs[i] * q_coefs[j];
                 }
             }
 
             // Update polynomial coefficients
-            this->coefs = removeTrailingZeros<T>(pq_coefs);
-            this->deg = pq_coefs.size() - 1;
+            this->coefs = removeTrailingZeros<RTN>(pq_coefs);
+            this->deg = this->coefs.size() - 1;
             return *this;
         }
 
-        Polynomial& operator*=(const T s)
+        Polynomial& operator*=(const number<mpfr_float_backend<N> > s)
         {
             /*
              * In-place multiplication by scalar s.
+             *
+             * Note that the precision of the input scalar must match that 
+             * of the current polynomial. 
              */
-            this->coefs *= s;
+            for (int i = 0; i < this->coefs.size(); ++i) this->coefs[i] *= s;
             return *this;
         }
 
-        Polynomial operator/(const T s) const
+        template <unsigned M = N, unsigned P = N>
+        Polynomial<P> operator/(const number<mpfr_float_backend<M> > s) const
         {
             /*
              * Return the result of dividing by scalar s.
              */
-            Matrix<T, Dynamic, 1> p_coefs(this->coefs);
-            p_coefs /= s;
-            return Polynomial(p_coefs);
+            typedef number<mpfr_float_backend<P> > RTP;
+
+            std::vector<RTP> p_coefs;
+            for (auto&& coef : this->coefs) p_coefs.push_back(RTP(coef) / RTP(s));
+            return Polynomial<P>(p_coefs);
         }
 
-        Polynomial& operator/=(const T s)
+        Polynomial& operator/=(const number<mpfr_float_backend<N> > s)
         {
             /*
              * In-place division by scalar s.
+             *
+             * Note that the precision of the input scalar must match that 
+             * of the current polynomial. 
              */
-            this->coefs /= s;
+            for (int i = 0; i < this->coefs.size(); ++i) this->coefs[i] /= s;
             return *this;
         }
 
-        Polynomial diff() const 
+        number<mpfr_float_backend<N> > leadingCoef() const
         {
             /*
-             * Return the derivative of this polynomial.
-             */
-            if (this->deg == 0)
-                return Polynomial();
-
-            Matrix<T, Dynamic, 1> dcoefs = (
-                Array<T, Dynamic, 1>::LinSpaced(this->deg, 1, this->deg)
-                * this->coefs.tail(this->deg).array()
-            ).matrix();
-            return Polynomial(dcoefs);
-        }
-
-        T leadingCoef() const
-        {
-            /*
-             * Return the leading coefficient of this polynomial.
+             * Return the leading coefficient of the current polynomial.
              */
             return this->coefs[this->deg];
         }
 
-        Polynomial<T> reduce() const
+        Polynomial<N> reduce() const
         {
             /*
-             * Factor out all powers of x from this polynomial. 
+             * Factor out all powers of x from the current polynomial. 
              */
-            Matrix<T, Dynamic, 1> reduced(this->coefs);
-            while (reduced(0) == 0.0)
-                reduced = reduced.tail(reduced.size() - 1).eval();
-            return Polynomial<T>(reduced);
+            typedef number<mpfr_float_backend<N> > RTN;
+
+            // Skip over all low-degree zero coefficients 
+            std::vector<RTN> reduced;
+            int i = 0;
+            while (i < this->coefs.size() && this->coefs[i] == 0.0) i++;
+            for (int j = i; j < this->coefs.size(); ++j)
+                reduced.push_back(this->coefs[j]);
+
+            return Polynomial<N>(reduced);
         }
 
-        Polynomial<T> monic() const
+        Polynomial<N> monic() const
         {
             /*
              * Factor out the leading coefficient. 
              */
-            return Polynomial<T>(this->coefs / this->leadingCoef());
+            typedef number<mpfr_float_backend<N> > RTN;
+
+            std::vector<RTN> divided;
+            RTN leading_coef = this->leadingCoef();
+            for (auto&& coef : this->coefs)
+                divided.push_back(coef / leading_coef);
+
+            return Polynomial<N>(divided);
         }
 
-        Matrix<std::complex<T>, Dynamic, 1> roots(SolveMethod method = Aberth,
-                                                  unsigned max_iter = 1000,
-                                                  double atol = 1e-15,
-                                                  double rtol = 1e-15,
-                                                  unsigned sharpen_iter = 20,
-                                                  std::vector<std::complex<double> > inits = {})
+        template <unsigned M = N>
+        std::pair<std::vector<number<mpc_complex_backend<M> > >, bool> roots(SolveMethod method = Aberth,
+                                                                             int max_iter = 1000,
+                                                                             double atol = 1e-15,
+                                                                             double rtol = 1e-15)
         {
             /*
              * Return all complex roots of the polynomial.  
              */
+            typedef number<mpfr_float_backend<M> >  RTM;
+            typedef number<mpc_complex_backend<M> > CTM;
+
             if (this->deg == 2)
             {
-                Matrix<std::complex<T>, Dynamic, 1> roots(2);
-                T b = this->coefs(1) / this->coefs(2);
-                T c = this->coefs(0) / this->coefs(2);
-                std::vector<std::complex<T> > r = quadratic<T>(b, c);
-                roots(0) = r[0];
-                roots(1) = r[1];
-                return roots;
+                RTM b(this->coefs[1] / this->coefs[2]);
+                RTM c(this->coefs[0] / this->coefs[2]);
+                return std::make_pair(quadratic<M>(b, c), true);
             }
-            //else if (this->deg == 3)
-            //{
-            //    Matrix<std::complex<T>, Dynamic, 1> roots(3);
-            //    T b = this->coefs(2) / this->coefs(3);
-            //    T c = this->coefs(1) / this->coefs(3);
-            //    T d = this->coefs(0) / this->coefs(3);
-            //    std::vector<std::complex<T> > r = cubic<T>(b, c, d);
-            //    roots(0) = r[0];
-            //    roots(1) = r[1];
-            //    roots(2) = r[2];
-            //    return roots;
-            //}
+            else if (this->deg == 3)
+            {
+                RTM b(this->coefs[2] / this->coefs[3]);
+                RTM c(this->coefs[1] / this->coefs[3]);
+                RTM d(this->coefs[0] / this->coefs[3]);
+                return std::make_pair(cubic<M>(b, c, d), true);
+            }
             else if (method == Aberth)
             {
-                return this->rootsAberth(max_iter, atol, rtol, sharpen_iter, inits);
+                return this->rootsAberth<M>(max_iter, atol, rtol);
             }
             else
             {
-                return this->rootsWeierstrass(max_iter, atol, rtol, inits);
+                return this->rootsWeierstrass<M>(max_iter, atol, rtol);
             }
         }
 };
