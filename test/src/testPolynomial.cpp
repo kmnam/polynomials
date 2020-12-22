@@ -268,7 +268,7 @@ BOOST_AUTO_TEST_CASE(testOperators)
     typedef number<mpfr_float_backend<40> > mpfr_40;
 
     // Define three polynomials of varying precisions and degrees 
-    std::vector<mpfr_20> p_coefs;
+    std::vector<mpfr_20> p_coefs;           // 41.5 - 74.6*x + 19.6*x^2
     p_coefs.push_back(mpfr_20("41.5"));
     p_coefs.push_back(mpfr_20("-74.6"));
     p_coefs.push_back(mpfr_20("19.6"));
@@ -281,7 +281,7 @@ BOOST_AUTO_TEST_CASE(testOperators)
         else if (i == 2) BOOST_TEST((coef.first.rfind("1.9600000000000000000", 0) == 0  || coef.first.rfind("1.9599999999999999999", 0) == 0));
         BOOST_TEST(coef.second == 1); 
     }
-    std::vector<mpfr_30> q_coefs;
+    std::vector<mpfr_30> q_coefs;           // 55.9 + 58.5*x - 96.5*x^2 + 83.4*x^3
     q_coefs.push_back(mpfr_30("55.9"));
     q_coefs.push_back(mpfr_30("58.5"));
     q_coefs.push_back(mpfr_30("-96.5"));
@@ -296,7 +296,7 @@ BOOST_AUTO_TEST_CASE(testOperators)
         else if (i == 3) BOOST_TEST((coef.first.rfind("8.34000000000000000000000000000", 0) == 0  || coef.first.rfind("8.339999999999999999999999999999", 0) == 0));
         BOOST_TEST(coef.second == 1);
     }
-    std::vector<mpfr_40> r_coefs;
+    std::vector<mpfr_40> r_coefs;           // 12.9 + 12.1*x + 0.169*x^2 - 5.72*x^3 + 30.0*x^4 + 56.4*x^5
     r_coefs.push_back(mpfr_40("12.9"));
     r_coefs.push_back(mpfr_40("12.1"));
     r_coefs.push_back(mpfr_40("0.169"));
@@ -319,7 +319,28 @@ BOOST_AUTO_TEST_CASE(testOperators)
             BOOST_TEST((coef.first.rfind("3.000000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("2.999999999999999999999999999999999999999", 0) == 0));
         else if (i == 5)
             BOOST_TEST((coef.first.rfind("5.640000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("5.639999999999999999999999999999999999999", 0) == 0));
-    } 
+    }
+    std::vector<mpfr_40> s_coefs;           // 5.25 + 5.88*x - 8.66*x^2 + 74.7*x^3 - 22.5*x^4
+    s_coefs.push_back(mpfr_40("5.25"));
+    s_coefs.push_back(mpfr_40("5.88"));
+    s_coefs.push_back(mpfr_40("-8.66"));
+    s_coefs.push_back(mpfr_40("74.7"));
+    s_coefs.push_back(mpfr_40("-22.5"));
+    Polynomial<40> s(s_coefs);
+    for (int i = 0; i < 5; ++i)
+    {
+        std::pair<std::string, int> coef = getNumberAsString<40>(s.coefficients()[i]);
+        if (i == 0)
+            BOOST_TEST((coef.first.rfind("5.250000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("5.249999999999999999999999999999999999999", 0) == 0));
+        else if (i == 1)
+            BOOST_TEST((coef.first.rfind("5.880000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("5.879999999999999999999999999999999999999", 0) == 0));
+        else if (i == 2)
+            BOOST_TEST((coef.first.rfind("-8.660000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-8.659999999999999999999999999999999999999", 0) == 0));
+        else if (i == 3)
+            BOOST_TEST((coef.first.rfind("7.470000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("7.469999999999999999999999999999999999999", 0) == 0));
+        else if (i == 4)
+            BOOST_TEST((coef.first.rfind("-2.250000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-2.249999999999999999999999999999999999999", 0) == 0));
+    }
 
     // Add p and q to get a result of precision 40
     Polynomial<40> p_plus_q = p.operator+<30, 40>(q);
@@ -339,6 +360,36 @@ BOOST_AUTO_TEST_CASE(testOperators)
             BOOST_TEST((coef.first.rfind("8.3400000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("8.339999999999999999999999999999999999999", 0) == 0));
         BOOST_TEST(coef.second == 1);
     }
+
+    // Add r and s (both precision 40, output precision 40)
+    Polynomial<40> r_plus_s = r + s;
+    sum_coefs = r_plus_s.coefficients();
+    BOOST_TEST(r_plus_s.degree() == 5);
+    BOOST_TEST(sum_coefs.size() == 6);
+    for (int i = 0; i < 6; ++i)
+    {
+        std::pair<std::string, int> coef = getNumberAsString<40>(sum_coefs[i]);
+        if (i == 0)
+        {      
+            BOOST_TEST((coef.first.rfind("1.815000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("1.814999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((coef.first.rfind("1.798000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("1.797999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+        else if (i == 2)
+        {
+            BOOST_TEST((coef.first.rfind("-8.491000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-8.490999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 3)
+        {
+            BOOST_TEST((coef.first.rfind("6.898000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("6.897999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+    } 
 
     // Subtract q from p to get a result of precision 40
     Polynomial<40> p_minus_q = p.operator-<30, 40>(q);
