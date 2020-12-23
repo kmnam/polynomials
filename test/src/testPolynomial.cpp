@@ -1317,4 +1317,62 @@ BOOST_AUTO_TEST_CASE(testInPlaceMultiplication)
     }
 }
 
+BOOST_AUTO_TEST_CASE(testInPlaceScalarMultiplication)
+{
+    /*
+     * Test the in-place scalar multiplication operator. 
+     */
+    typedef number<mpfr_float_backend<40> > mpfr_40;
 
+    // Define r and b as before 
+    std::vector<mpfr_40> r_coefs;           // 12.9 + 12.1*x + 0.169*x^2 - 5.72*x^3 + 30.0*x^4 + 56.4*x^5
+    r_coefs.push_back(mpfr_40("12.9"));
+    r_coefs.push_back(mpfr_40("12.1"));
+    r_coefs.push_back(mpfr_40("0.169"));
+    r_coefs.push_back(mpfr_40("-5.72"));
+    r_coefs.push_back(mpfr_40("30.0"));
+    r_coefs.push_back(mpfr_40("56.4")); 
+    Polynomial<40> r(r_coefs);
+    mpfr_40 b("-3.73");
+
+    // Multiply r by b (both precision 40, output precision 40)
+    // Result: -48.117 - 45.133*x - 0.63037*x^2 + 21.3356*x^3 - 111.9*x^4 - 210.372*x^5
+    r *= b;
+    std::vector<mpfr_40> prod_coefs = r.coefficients();
+    BOOST_TEST(r.degree() == 5);
+    BOOST_TEST(prod_coefs.size() == 6);
+    for (int i = 0; i < 6; ++i)
+    {
+        std::pair<std::string, int> coef = getNumberAsString<40>(prod_coefs[i]);
+        if (i == 0)
+        {
+            BOOST_TEST((coef.first.rfind("-4.811700000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-4.811699999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((coef.first.rfind("-4.513300000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-4.513299999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+        else if (i == 2)
+        {
+            BOOST_TEST((coef.first.rfind("-6.303700000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-6.303699999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == -1);
+        }
+        else if (i == 3)
+        {
+            BOOST_TEST((coef.first.rfind("2.133560000000000000000000000000000000000", 0) == 0 || coef.first.rfind("2.133559999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+        else if (i == 4)
+        {
+            BOOST_TEST((coef.first.rfind("-1.119000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-1.118999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 2);
+        }
+        else if (i == 5)
+        {
+            BOOST_TEST((coef.first.rfind("-2.103720000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-2.103719999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 2);
+        }
+    }
+}
