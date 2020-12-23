@@ -1021,7 +1021,7 @@ class Polynomial
             typedef number<mpfr_float_backend<P> > RTP;
 
             std::vector<RTP> diff_coefs;
-            diff_coefs.push_back(convertPrecision<N, P>(this->coefs[0]) + convertPrecision<M, P>(s));
+            diff_coefs.push_back(convertPrecision<N, P>(this->coefs[0]) - convertPrecision<M, P>(s));
             for (int i = 1; i < this->coefs.size(); ++i)
                 diff_coefs.push_back(convertPrecision<N, P>(this->coefs[i]));
 
