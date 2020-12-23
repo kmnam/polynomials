@@ -304,35 +304,31 @@ std::pair<std::vector<number<mpc_complex_backend<M> > >, std::vector<double> >
     return std::make_pair(new_roots, delta);
 }
 
-template <unsigned N, unsigned M>
-std::pair<std::vector<number<mpc_complex_backend<M> > >, std::vector<double> >
+template <unsigned N>
+std::pair<std::vector<number<mpc_complex_backend<N> > >, std::vector<double> >
     weierstrass(const std::vector<number<mpfr_float_backend<N> > >& coefs,
                 const std::vector<number<mpc_complex_backend<N> > >& roots)
 {
     /*
      * Perform one iteration of Weierstrass' method, given the vector 
      * of coefficients corresponding to the polynomial and a vector of 
-     * current root approximations.  
+     * current root approximations.
+     *
+     * Leading coefficient is assumed to be one. 
+     *
+     * Input and output precisions are assumed to be the same.  
      */
-    typedef number<mpc_complex_backend<M> > CTM;
+    typedef number<mpc_complex_backend<N> > CTN;
 
     // Perform the Weierstrass correction for each root
-    std::vector<CTM> new_roots;
-    for (auto&& root : roots)
-    {
-        CTM new_root = convertPrecision<N, M>(root);
-        new_roots.push_back(new_root);
-    }
+    std::vector<CTN> new_roots(roots);
     for (int j = 0; j < roots.size(); ++j)
     {
-        CTM root = convertPrecision<N, M>(roots[j]);
-        CTM denom = 1.0;
-        for (int k = 0; k < roots.size(); ++k)
-        {
-            if (j != k) denom *= (root - new_roots[k]);
-        }
-        CTM correction = -hornerWiden<N, M>(coefs, roots[j]) / denom;
-        new_roots[j] += correction;
+        CTN denom = 1.0;
+        for (int k = 0; k < j; ++k)                denom *= (new_roots[j] - new_roots[k]);
+        for (int k = j + 1; k < roots.size(); ++k) denom *= (new_roots[j] - new_roots[k]);
+        CTN correction = horner<N>(coefs, roots[j]) / denom;
+        new_roots[j] -= correction;
     }
 
     // Compute the absolute difference between each old and new root
@@ -347,8 +343,8 @@ std::pair<std::vector<number<mpc_complex_backend<M> > >, std::vector<double> >
     return std::make_pair(new_roots, delta);
 }
 
-template <unsigned N, unsigned M>
-std::pair<std::vector<number<mpc_complex_backend<M> > >, std::vector<double> >
+template <unsigned N>
+std::pair<std::vector<number<mpc_complex_backend<N> > >, std::vector<double> >
     aberth(const std::vector<number<mpfr_float_backend<N> > >& coefs,
            const std::vector<number<mpfr_float_backend<N> > >& dcoefs,
            const std::vector<number<mpc_complex_backend<N> > >& roots)
@@ -356,36 +352,33 @@ std::pair<std::vector<number<mpc_complex_backend<M> > >, std::vector<double> >
     /*
      * Perform one iteration of the Aberth-Ehrlich method, given the vector 
      * of coefficients corresponding to the polynomial and a vector of 
-     * current root approximations.  
+     * current root approximations.
+     *
+     * Input and output precisions are assumed to be the same.  
      */
-    typedef number<mpc_complex_backend<M> > CTM;
+    typedef number<mpc_complex_backend<N> > CTN;
 
     // Perform the Aberth-Ehrlich correction for each root
-    std::vector<CTM> new_roots;
-    for (auto&& root : roots)
-    {
-        CTM new_root = convertPrecision<N, M>(root);
-        new_roots.push_back(new_root);
-    }
+    std::vector<CTN> new_roots(roots);
     for (int j = 0; j < roots.size(); ++j)
     {
-        CTM root_j = convertPrecision<N, M>(roots[j]);
-        CTM sum = 0.0;
+        CTN root_j = roots[j];
+        CTN sum = 0.0;
         for (int k = 0; k < j; ++k)
         {
             sum += (1.0 / (root_j - new_roots[k]));
         }
         for (int k = j + 1; k < roots.size(); ++k)
         {
-            CTM root_k(roots[k]);
+            CTN root_k = roots[k];
             sum += (1.0 / (root_j - root_k));
         }
-        CTM value = hornerWiden<N, M>(coefs, roots[j]) / hornerWiden<N, M>(dcoefs, roots[j]);
-        CTM denom = 1.0 - (value * sum);
-        CTM correction = value / denom;
+        CTN value = horner<N>(coefs, roots[j]) / horner<N>(dcoefs, roots[j]);
+        CTN denom = 1.0 - (value * sum);
+        CTN correction = value / denom;
         new_roots[j] -= correction;
     }
-
+    
     // Compute the absolute difference between each old and new root
     std::vector<double> delta;
     for (int j = 0; j < roots.size(); ++j)
@@ -483,7 +476,7 @@ class Polynomial
         // Coefficients of the polynomial stored in ascending order of power
         std::vector<number<mpfr_float_backend<N> > > coefs;
 
-        template <unsigned M = N>
+        template <unsigned M>
         std::pair<std::vector<number<mpc_complex_backend<M> > >, bool> rootsWeierstrass(int max_iter,
                                                                                         double atol,
                                                                                         double rtol)
@@ -510,7 +503,10 @@ class Polynomial
            
             // Set up vectors of coefficients and roots at given precision (M) 
             std::vector<RTM> coefs;
-            for (auto&& coef : this->coefs) coefs.push_back(convertPrecision<N, M>(coef));
+            RTM lead_coef = convertPrecision<N, M>(this->coefs[this->coefs.size() - 1]);
+            for (int i = 0; i < this->coefs.size() - 1; ++i)
+                coefs.push_back(convertPrecision<N, M>(this->coefs[i]) / lead_coef);
+            coefs.push_back(RTM("1.0"));
             std::vector<CTM> roots(inits);
             std::vector<CTM> new_roots;
 
@@ -520,7 +516,7 @@ class Polynomial
             for (int i = 0; i < this->deg; ++i) delta.push_back(0.0);
             while (iter < max_iter && !converged)
             {
-                std::pair<std::vector<CTM>, std::vector<double> > result = weierstrass<M, M>(coefs, roots);
+                std::pair<std::vector<CTM>, std::vector<double> > result = weierstrass<M>(coefs, roots);
                 new_roots = result.first;
                 new_delta = result.second;
                 iter++;
@@ -554,7 +550,7 @@ class Polynomial
             return std::make_pair(roots, converged);
         }
 
-        template <unsigned M = N>
+        template <unsigned M>
         std::pair<std::vector<number<mpc_complex_backend<M> > >, bool> rootsAberth(int max_iter,
                                                                                    double atol,
                                                                                    double rtol)
@@ -594,7 +590,7 @@ class Polynomial
             for (int i = 0; i < this->deg; ++i) delta.push_back(0.0);
             while (iter < max_iter && !converged)
             {
-                std::pair<std::vector<CTM>, std::vector<double> > result = aberth<M, M>(coefs, dcoefs, roots);
+                std::pair<std::vector<CTM>, std::vector<double> > result = aberth<M>(coefs, dcoefs, roots);
                 new_roots = result.first;
                 new_delta = result.second;
                 iter++;
