@@ -148,10 +148,11 @@ number<mpc_complex_backend<N> > cuberoot(number<mpc_complex_backend<N> > z)
     /*
      * Return the principal cube root of the complex number z.
      */
+    const number<mpfr_float_backend<N> > one_third = number<mpfr_float_backend<N> >("1.0") / number<mpfr_float_backend<N> >("3.0");
     if (z.real() < 0)
-        return -boost::multiprecision::pow(-z, number<mpfr_float_backend<N> >(1.0) / number<mpfr_float_backend<N> >(3.0));
+        return -boost::multiprecision::pow(-z, one_third);
     else
-        return boost::multiprecision::pow(z, number<mpfr_float_backend<N> >(1.0) / number<mpfr_float_backend<N> >(3.0));
+        return boost::multiprecision::pow(z, one_third);
 }
 
 template <unsigned N>
@@ -165,12 +166,12 @@ std::vector<number<mpc_complex_backend<N> > > cubic(const number<mpfr_float_back
     typedef number<mpfr_float_backend<N> >  RTN;
     typedef number<mpc_complex_backend<N> > CTN;
     std::vector<CTN> roots;
-    const RTN sqrt3 = boost::multiprecision::sqrt(RTN(3.0));
+    const RTN sqrt3 = boost::multiprecision::sqrt(RTN("3.0"));
     RTN q = (3 * c - b * b) / 9;
     RTN r = (9 * b * c - 27 * d - 2 * boost::multiprecision::pow(b, 3)) / 54;
     RTN p = boost::multiprecision::pow(q, 3) + boost::multiprecision::pow(r, 2);
-    CTN s = cuberoot(r + boost::multiprecision::sqrt(CTN(p, 0.0)));
-    CTN t = cuberoot(r - boost::multiprecision::sqrt(CTN(p, 0.0)));
+    CTN s = cuberoot<N>(r + boost::multiprecision::sqrt(CTN(p, 0.0)));
+    CTN t = cuberoot<N>(r - boost::multiprecision::sqrt(CTN(p, 0.0)));
     roots.push_back(-b / 3.0 + s + t);
     roots.push_back(-b / 3.0 - (s + t) / 2.0 + CTN(0.0, 1.0) * sqrt3 * (s - t) / 2.0);
     roots.push_back(boost::multiprecision::conj(roots[1]));
@@ -1280,7 +1281,36 @@ class Polynomial
             return Polynomial<N>(divided);
         }
 
-        template <unsigned M = N>
+        std::pair<std::vector<number<mpc_complex_backend<N> > >, bool> roots(SolveMethod method = Aberth,
+                                                                             int max_iter = 1000,
+                                                                             double atol = 1e-15,
+                                                                             double rtol = 1e-15)
+        {
+            /*
+             * Return all complex roots of the polynomial. 
+             */
+            typedef number<mpfr_float_backend<N> > RTN;
+
+            if (this->deg == 2)
+            {
+                return std::make_pair(quadratic<N>(this->coefs[1] / this->coefs[2], this->coefs[0] / this->coefs[2]), true);
+            }
+            else if (this->deg == 3)
+            {
+                RTN a = this->coefs[3];
+                return std::make_pair(cubic<N>(this->coefs[2] / a, this->coefs[1] / a, this->coefs[0] / a), true);
+            }
+            else if (method == Aberth)
+            {
+                return this->rootsAberth<N>(max_iter, atol, rtol);
+            }
+            else
+            {
+                return this->rootsWeierstrass<N>(max_iter, atol, rtol);
+            }
+        }
+
+        template <unsigned M>
         std::pair<std::vector<number<mpc_complex_backend<M> > >, bool> roots(SolveMethod method = Aberth,
                                                                              int max_iter = 1000,
                                                                              double atol = 1e-15,
@@ -1289,7 +1319,7 @@ class Polynomial
             /*
              * Return all complex roots of the polynomial.  
              */
-            typedef number<mpfr_float_backend<M> >  RTM;
+            typedef number<mpfr_float_backend<M> > RTM;
 
             if (this->deg == 2)
             {
