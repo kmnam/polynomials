@@ -1226,8 +1226,18 @@ class Polynomial
              * Note that the precision of the input scalar must match that 
              * of the current polynomial. 
              */
-            for (int i = 0; i < this->coefs.size(); ++i) this->coefs[i] /= s;
+            for (auto&& coef : this->coefs) coef /= s;
             return *this;
+        }
+
+        Polynomial<N> operator-() const
+        {
+            /*
+             * Return the negative of the current polynomial. 
+             */
+            std::vector<number<mpfr_float_backend<N> > > coefs(this->coefs); 
+            for (auto&& coef : coefs) coef *= (-1);
+            return Polynomial<N>(coefs);
         }
 
         number<mpfr_float_backend<N> > leadingCoef() const
@@ -1306,6 +1316,24 @@ class Polynomial
             }
         }
 };
+
+template <unsigned N>
+Polynomial<N> operator+(const number<mpfr_float_backend<N> >& s, Polynomial<N> rhs)
+{
+    /*
+     * Left-hand addition by the same-precision scalar s.
+     */
+    return rhs + s; 
+}
+
+template <unsigned N>
+Polynomial<N> operator-(const number<mpfr_float_backend<N> >& s, Polynomial<N> rhs)
+{
+    /*
+     * Left-hand subtraction by the same-precision scalar s. 
+     */
+    return (-rhs) + s;  
+}
 
 template <unsigned N>
 Polynomial<N> operator*(const number<mpfr_float_backend<N> >& s, Polynomial<N> rhs)
