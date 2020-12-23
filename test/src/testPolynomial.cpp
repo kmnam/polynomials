@@ -1442,3 +1442,58 @@ BOOST_AUTO_TEST_CASE(testInPlaceScalarDivision)
     }
 }
 
+BOOST_AUTO_TEST_CASE(testSolveQuadratic)
+{
+    /*
+     * Get the roots of a quadratic using the quadratic formula. 
+     */
+    typedef number<mpfr_float_backend<20> >  mpfr_20;
+    typedef number<mpc_complex_backend<20> > mpc_20;
+    typedef number<mpfr_float_backend<30> >  mpfr_30;
+    typedef number<mpc_complex_backend<30> > mpc_30;
+
+    // Define p as before 
+    std::vector<mpfr_20> p_coefs;           // 41.5 - 74.6*x + 19.6*x^2
+    p_coefs.push_back(mpfr_20("41.5"));
+    p_coefs.push_back(mpfr_20("-74.6"));
+    p_coefs.push_back(mpfr_20("19.6"));
+    Polynomial<20> p(p_coefs);
+
+    // Get roots with same precision (20) as coefficients
+    // Solutions: 0.67656414525108398788 and 3.1295583037285078489
+    std::pair<std::vector<mpc_20>, bool> roots = p.roots();
+    std::sort(roots.first.begin(), roots.first.end(), [](mpc_20 a, mpc_20 b){ return (a.real() < b.real()); });
+    for (int i = 0; i < 2; ++i)
+    {
+        std::pair<std::string, int> root = getNumberAsString<20>(roots.first[i].real());
+        if (i == 0)
+        {
+            BOOST_TEST((root.first.rfind("6.7656414525108398788", 0) == 0 || root.first.rfind("6.7656414525108398787", 0) == 0));
+            BOOST_TEST(root.second == -1);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((root.first.rfind("3.1295583037285078489", 0) == 0 || root.first.rfind("3.1295583037285078488", 0) == 0));
+            BOOST_TEST(root.second == 0);
+        }
+    }
+
+    // Get roots with precision 30
+    // Solutions: 0.676564145251083987876879502160 and 3.12955830372850784885781437539
+    std::pair<std::vector<mpc_30>, bool> roots_30 = p.roots<30>();
+    std::sort(roots_30.first.begin(), roots_30.first.end(), [](mpc_30 a, mpc_30 b){ return (a.real() < b.real()); });
+    for (int i = 0; i < 2; ++i)
+    {
+        std::pair<std::string, int> root = getNumberAsString<30>(roots_30.first[i].real());
+        if (i == 0)
+        {
+            BOOST_TEST((root.first.rfind("6.76564145251083987876879502160", 0) == 0 || root.first.rfind("6.76564145251083987876879502159", 0) == 0));
+            BOOST_TEST(root.second == -1);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((root.first.rfind("3.12955830372850784885781437539", 0) == 0 || root.first.rfind("3.12955830372850784885781437538", 0) == 0));
+            BOOST_TEST(root.second == 0);
+        }
+    }
+}
