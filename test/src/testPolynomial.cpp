@@ -1669,6 +1669,62 @@ BOOST_AUTO_TEST_CASE(testSolveWeierstrass)
             BOOST_TEST(root_imag.second == -1);
         }
     }
+
+    // Get roots with precision 50
+    // Solutions: -0.80115515308340360926152290004316066895772474042464,
+    //            -0.42613327731896388789584586349206480661427590651186 - 0.57039301146186323645735618066518508239107126817095*i
+    //            -0.42613327731896388789584586349206480661427590651186 + 0.57039301146186323645735618066518508239107126817095*i
+    //            0.56075340705215505422873497308811322619952125544759 - 0.49872376016046997943682112757504653134116713321119*i
+    //            0.56075340705215505422873497308811322619952125544759 + 0.49872376016046997943682112757504653134116713321119*i
+    std::pair<std::vector<mpc_50>, bool> roots_50 = r.roots<50>(Weierstrass, 1000, 0.0, 1e-50);
+    BOOST_TEST(roots_50.second);    // Check for convergence first, then sort by real/imaginary parts
+    std::sort(roots_50.first.begin(), roots_50.first.end(), [](mpc_50 a, mpc_50 b)
+        {
+            if (a.real() == b.real()) return (a.imag() < b.imag());
+            else                      return (a.real() < b.real());
+        }
+    );
+    for (int i = 0; i < 5; ++i)
+    {
+        std::pair<std::string, int> root_real = getNumberAsString<50>(roots_50.first[i].real());
+        std::pair<std::string, int> root_imag = getNumberAsString<50>(roots_50.first[i].imag());
+       
+        // Check up to 42 first digits (empirically found threshold)  
+        if (i == 0)
+        {
+            BOOST_TEST((root_real.first.rfind("-8.01155153083403609261522900043160668957724", 0) == 0 || root_real.first.rfind("-8.01155153083403609261522900043160668957723", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST(boost::multiprecision::abs(roots.first[i].imag()) < 1e-50);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((root_real.first.rfind("-4.26133277318963887895845863492064806614275", 0) == 0 || root_real.first.rfind("-4.26133277318963887895845863492064806614274", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("-5.70393011461863236457356180665185082391071", 0) == 0 || root_imag.first.rfind("-5.70393011461863236457356180665185082391070", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+        else if (i == 2)
+        {
+            BOOST_TEST((root_real.first.rfind("-4.26133277318963887895845863492064806614275", 0) == 0 || root_real.first.rfind("-4.26133277318963887895845863492064806614274", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("5.70393011461863236457356180665185082391071", 0) == 0  || root_imag.first.rfind("5.70393011461863236457356180665185082391070", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+        else if (i == 3)
+        {
+            BOOST_TEST((root_real.first.rfind("5.60753407052155054228734973088113226199521", 0) == 0  || root_real.first.rfind("5.60753407052155054228734973088113226199520", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("-4.98723760160469979436821127575046531341167", 0) == 0 || root_imag.first.rfind("-4.98723760160469979436821127575046531341166", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+        else if (i == 4)
+        {
+            BOOST_TEST((root_real.first.rfind("5.60753407052155054228734973088113226199521", 0) == 0  || root_real.first.rfind("5.60753407052155054228734973088113226199520", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("4.98723760160469979436821127575046531341167", 0) == 0  || root_imag.first.rfind("4.98723760160469979436821127575046531341166", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+    }
 }
 
 BOOST_AUTO_TEST_CASE(testSolveAberth)
@@ -1742,6 +1798,62 @@ BOOST_AUTO_TEST_CASE(testSolveAberth)
             BOOST_TEST((root_real.first.rfind("5.607534070521550542287349730881132261995", 0) == 0  || root_real.first.rfind("5.607534070521550542287349730881132261994", 0) == 0));
             BOOST_TEST(root_real.second == -1);
             BOOST_TEST((root_imag.first.rfind("4.987237601604699794368211275750465313412", 0) == 0  || root_imag.first.rfind("4.987237601604699794368211275750465313411", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+    }
+
+    // Get roots with precision 50
+    // Solutions: -0.80115515308340360926152290004316066895772474042464,
+    //            -0.42613327731896388789584586349206480661427590651186 - 0.57039301146186323645735618066518508239107126817095*i
+    //            -0.42613327731896388789584586349206480661427590651186 + 0.57039301146186323645735618066518508239107126817095*i
+    //            0.56075340705215505422873497308811322619952125544759 - 0.49872376016046997943682112757504653134116713321119*i
+    //            0.56075340705215505422873497308811322619952125544759 + 0.49872376016046997943682112757504653134116713321119*i
+    std::pair<std::vector<mpc_50>, bool> roots_50 = r.roots<50>(Aberth, 1000, 0.0, 1e-50);
+    BOOST_TEST(roots_50.second);    // Check for convergence first, then sort by real/imaginary parts
+    std::sort(roots_50.first.begin(), roots_50.first.end(), [](mpc_50 a, mpc_50 b)
+        {
+            if (a.real() == b.real()) return (a.imag() < b.imag());
+            else                      return (a.real() < b.real());
+        }
+    );
+    for (int i = 0; i < 5; ++i)
+    {
+        std::pair<std::string, int> root_real = getNumberAsString<50>(roots_50.first[i].real());
+        std::pair<std::string, int> root_imag = getNumberAsString<50>(roots_50.first[i].imag());
+
+        // Check all 50 digits (compare against Weierstrass' method)
+        if (i == 0)
+        {
+            BOOST_TEST((root_real.first.rfind("-8.0115515308340360926152290004316066895772474042464", 0) == 0 || root_real.first.rfind("-8.0115515308340360926152290004316066895772474042463", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST(boost::multiprecision::abs(roots.first[i].imag()) < 1e-50);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((root_real.first.rfind("-4.2613327731896388789584586349206480661427590651186", 0) == 0 || root_real.first.rfind("-4.2613327731896388789584586349206480661427590651185", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("-5.7039301146186323645735618066518508239107126817095", 0) == 0 || root_imag.first.rfind("-5.7039301146186323645735618066518508239107126817094", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+        else if (i == 2)
+        {
+            BOOST_TEST((root_real.first.rfind("-4.2613327731896388789584586349206480661427590651186", 0) == 0 || root_real.first.rfind("-4.2613327731896388789584586349206480661427590651185", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("5.7039301146186323645735618066518508239107126817095", 0) == 0  || root_imag.first.rfind("5.7039301146186323645735618066518508239107126817094", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+        else if (i == 3)
+        {
+            BOOST_TEST((root_real.first.rfind("5.6075340705215505422873497308811322619952125544759", 0) == 0  || root_real.first.rfind("5.6075340705215505422873497308811322619952125544758", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("-4.9872376016046997943682112757504653134116713321119", 0) == 0 || root_imag.first.rfind("-4.9872376016046997943682112757504653134116713321118", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+        else if (i == 4)
+        {
+            BOOST_TEST((root_real.first.rfind("5.6075340705215505422873497308811322619952125544759", 0) == 0  || root_real.first.rfind("5.6075340705215505422873497308811322619952125544758", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("4.9872376016046997943682112757504653134116713321119", 0) == 0  || root_imag.first.rfind("4.9872376016046997943682112757504653134116713321118", 0) == 0));
             BOOST_TEST(root_imag.second == -1);
         }
     }
