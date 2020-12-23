@@ -1465,6 +1465,7 @@ BOOST_AUTO_TEST_CASE(testSolveQuadratic)
     std::sort(roots.first.begin(), roots.first.end(), [](mpc_20 a, mpc_20 b){ return (a.real() < b.real()); });
     for (int i = 0; i < 2; ++i)
     {
+        BOOST_TEST(roots.first[i].imag() == 0.0);
         std::pair<std::string, int> root = getNumberAsString<20>(roots.first[i].real());
         if (i == 0)
         {
@@ -1484,6 +1485,7 @@ BOOST_AUTO_TEST_CASE(testSolveQuadratic)
     std::sort(roots_30.first.begin(), roots_30.first.end(), [](mpc_30 a, mpc_30 b){ return (a.real() < b.real()); });
     for (int i = 0; i < 2; ++i)
     {
+        BOOST_TEST(roots_30.first[i].imag() == 0.0);
         std::pair<std::string, int> root = getNumberAsString<30>(roots_30.first[i].real());
         if (i == 0)
         {
@@ -1494,6 +1496,101 @@ BOOST_AUTO_TEST_CASE(testSolveQuadratic)
         {
             BOOST_TEST((root.first.rfind("3.12955830372850784885781437539", 0) == 0 || root.first.rfind("3.12955830372850784885781437538", 0) == 0));
             BOOST_TEST(root.second == 0);
+        }
+    }
+}
+
+BOOST_AUTO_TEST_CASE(testSolveCubic)
+{
+    /*
+     * Get the roots of a cubic using the cubic formula. 
+     */
+    typedef number<mpfr_float_backend<30> >  mpfr_30;
+    typedef number<mpc_complex_backend<30> > mpc_30;
+    typedef number<mpfr_float_backend<40> >  mpfr_40;
+    typedef number<mpc_complex_backend<40> > mpc_40;
+
+    // Define q as before 
+    std::vector<mpfr_30> q_coefs;           // 55.9 + 58.5*x - 96.5*x^2 + 83.4*x^3
+    q_coefs.push_back(mpfr_30("55.9"));
+    q_coefs.push_back(mpfr_30("58.5"));
+    q_coefs.push_back(mpfr_30("-96.5"));
+    q_coefs.push_back(mpfr_30("83.4"));
+    Polynomial<30> q(q_coefs);
+
+    // Get roots with same precision (29, accounting for error due to computations)
+    // Solutions: -0.46225599097010167068346290934,
+    //            0.80966516574883980416667150263 - 0.89130596059275302403974487956*i,
+    //            0.80966516574883980416667150263 + 0.89130596059275302403974487956*i
+    std::pair<std::vector<mpc_30>, bool> roots = q.roots();
+    std::sort(roots.first.begin(), roots.first.end(), [](mpc_30 a, mpc_30 b)
+        {
+            if (a.real() == b.real()) return (a.imag() < b.imag());
+            else                      return (a.real() < b.real());
+        }
+    );
+    for (int i = 0; i < 3; ++i)
+    {
+        std::pair<std::string, int> root_real = getNumberAsString<30>(roots.first[i].real());
+        std::pair<std::string, int> root_imag = getNumberAsString<30>(roots.first[i].imag());
+        if (i == 0)
+        {
+            BOOST_TEST((root_real.first.rfind("-4.6225599097010167068346290934", 0) == 0 || root_real.first.rfind("-4.6225599097010167068346290933", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("0.0000000000000000000000000000", 0) == 0  || root_imag.first.rfind("-0.0000000000000000000000000000", 0) == 0));
+            BOOST_TEST(root_imag.second == 0);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((root_real.first.rfind("8.0966516574883980416667150263", 0) == 0  || root_real.first.rfind("8.0966516574883980416667150262", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("-8.9130596059275302403974487956", 0) == 0 || root_imag.first.rfind("-8.9130596059275302403974487955", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+        else if (i == 2)
+        {
+            BOOST_TEST((root_real.first.rfind("8.0966516574883980416667150263", 0) == 0  || root_real.first.rfind("8.0966516574883980416667150262", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("8.9130596059275302403974487956", 0) == 0  || root_imag.first.rfind("8.9130596059275302403974487955", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+    }
+
+    // Get roots with precision 40 (39, accounting for error due to computations)
+    // Solutions: -0.462255990970101670683462909334950520555,
+    //            0.809665165748839804166671502629105955721 - 0.891305960592753024039744879557940668782*i,
+    //            0.809665165748839804166671502629105955721 + 0.891305960592753024039744879557940668782*i
+    std::pair<std::vector<mpc_40>, bool> roots_40 = q.roots<40>();
+    std::sort(roots_40.first.begin(), roots_40.first.end(), [](mpc_40 a, mpc_40 b)
+        {
+            if (a.real() == b.real()) return (a.imag() < b.imag());
+            else                      return (a.real() < b.real());
+        }
+    );
+    for (int i = 0; i < 3; ++i)
+    {
+        std::pair<std::string, int> root_real = getNumberAsString<40>(roots_40.first[i].real());
+        std::pair<std::string, int> root_imag = getNumberAsString<40>(roots_40.first[i].imag());
+        if (i == 0)
+        {
+            BOOST_TEST((root_real.first.rfind("-4.62255990970101670683462909334950520555", 0) == 0 || root_real.first.rfind("-4.62255990970101670683462909334950520554", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("0.00000000000000000000000000000000000000", 0) == 0  || root_imag.first.rfind("-0.00000000000000000000000000000000000000", 0) == 0));
+            BOOST_TEST(root_imag.second == 0);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((root_real.first.rfind("8.09665165748839804166671502629105955721", 0) == 0  || root_real.first.rfind("8.09665165748839804166671502629105955720", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("-8.91305960592753024039744879557940668782", 0) == 0 || root_imag.first.rfind("-8.91305960592753024039744879557940668781", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+        else if (i == 2)
+        {
+            BOOST_TEST((root_real.first.rfind("8.09665165748839804166671502629105955721", 0) == 0  || root_real.first.rfind("8.09665165748839804166671502629105955720", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("8.91305960592753024039744879557940668782", 0) == 0  || root_imag.first.rfind("8.91305960592753024039744879557940668781", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
         }
     }
 }
