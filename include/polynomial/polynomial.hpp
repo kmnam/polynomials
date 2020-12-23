@@ -582,8 +582,8 @@ class Polynomial
             // Set up vectors of coefficients and roots at given precision (M)
             std::vector<RTM> coefs, dcoefs;
             for (int i = 0; i < this->coefs.size(); ++i)
-                coefs.push_back(convertPrecision<N, M>(coefs[i]));
-            for (int i = 0; i < this->coefs.size() - 1; ++i)
+                coefs.push_back(convertPrecision<N, M>(this->coefs[i]));
+            for (int i = 0; i < coefs.size() - 1; ++i)
                 dcoefs.push_back((i + 1) * coefs[i+1]);
             std::vector<CTM> roots(inits);
             std::vector<CTM> new_roots;
