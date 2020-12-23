@@ -261,13 +261,13 @@ BOOST_AUTO_TEST_CASE(testEval)
 BOOST_AUTO_TEST_CASE(testOperators)
 {
     /*
-     * Test the addition, subtraction, multiplication, and division operators.  
+     * Test the addition, subtraction, and multiplication operators.  
      */
     typedef number<mpfr_float_backend<20> > mpfr_20;
     typedef number<mpfr_float_backend<30> > mpfr_30;
     typedef number<mpfr_float_backend<40> > mpfr_40;
 
-    // Define three polynomials of varying precisions and degrees 
+    // Define four polynomials of varying precisions and degrees 
     std::vector<mpfr_20> p_coefs;           // 41.5 - 74.6*x + 19.6*x^2
     p_coefs.push_back(mpfr_20("41.5"));
     p_coefs.push_back(mpfr_20("-74.6"));
@@ -574,3 +574,221 @@ BOOST_AUTO_TEST_CASE(testOperators)
         }
     }
 }
+
+BOOST_AUTO_TEST_CASE(testInPlaceAddition)
+{
+    /*
+     * Test the in-place addition operator.  
+     */
+    typedef number<mpfr_float_backend<40> > mpfr_40;
+
+    // Define r and s as before 
+    std::vector<mpfr_40> r_coefs;           // 12.9 + 12.1*x + 0.169*x^2 - 5.72*x^3 + 30.0*x^4 + 56.4*x^5
+    r_coefs.push_back(mpfr_40("12.9"));
+    r_coefs.push_back(mpfr_40("12.1"));
+    r_coefs.push_back(mpfr_40("0.169"));
+    r_coefs.push_back(mpfr_40("-5.72"));
+    r_coefs.push_back(mpfr_40("30.0"));
+    r_coefs.push_back(mpfr_40("56.4")); 
+    Polynomial<40> r(r_coefs);
+    std::vector<mpfr_40> s_coefs;           // 5.25 + 5.88*x - 8.66*x^2 + 74.7*x^3 - 22.5*x^4
+    s_coefs.push_back(mpfr_40("5.25"));
+    s_coefs.push_back(mpfr_40("5.88"));
+    s_coefs.push_back(mpfr_40("-8.66"));
+    s_coefs.push_back(mpfr_40("74.7"));
+    s_coefs.push_back(mpfr_40("-22.5"));
+    Polynomial<40> s(s_coefs);
+
+    // Add r and s (both precision 40, output precision 40)
+    r += s;
+    std::vector<mpfr_40> sum_coefs = r.coefficients();
+    BOOST_TEST(r.degree() == 5);
+    BOOST_TEST(sum_coefs.size() == 6);
+    for (int i = 0; i < 6; ++i)
+    {
+        std::pair<std::string, int> coef = getNumberAsString<40>(sum_coefs[i]);
+        if (i == 0)
+        {      
+            BOOST_TEST((coef.first.rfind("1.815000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("1.814999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((coef.first.rfind("1.798000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("1.797999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+        else if (i == 2)
+        {
+            BOOST_TEST((coef.first.rfind("-8.491000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-8.490999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 3)
+        {
+            BOOST_TEST((coef.first.rfind("6.898000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("6.897999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+        else if (i == 4)
+        {
+            BOOST_TEST((coef.first.rfind("7.500000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("7.499999999999999999999999999999999999999", 0) == 0)); 
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 5)
+        {
+            BOOST_TEST((coef.first.rfind("5.640000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("5.639999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+    } 
+}
+
+BOOST_AUTO_TEST_CASE(testInPlaceSubtraction)
+{
+    /*
+     * Test the in-place subtraction operator.  
+     */
+    typedef number<mpfr_float_backend<40> > mpfr_40;
+
+    // Define r and s as before
+    std::vector<mpfr_40> r_coefs;           // 12.9 + 12.1*x + 0.169*x^2 - 5.72*x^3 + 30.0*x^4 + 56.4*x^5
+    r_coefs.push_back(mpfr_40("12.9"));
+    r_coefs.push_back(mpfr_40("12.1"));
+    r_coefs.push_back(mpfr_40("0.169"));
+    r_coefs.push_back(mpfr_40("-5.72"));
+    r_coefs.push_back(mpfr_40("30.0"));
+    r_coefs.push_back(mpfr_40("56.4")); 
+    Polynomial<40> r(r_coefs);
+    std::vector<mpfr_40> s_coefs;           // 5.25 + 5.88*x - 8.66*x^2 + 74.7*x^3 - 22.5*x^4
+    s_coefs.push_back(mpfr_40("5.25"));
+    s_coefs.push_back(mpfr_40("5.88"));
+    s_coefs.push_back(mpfr_40("-8.66"));
+    s_coefs.push_back(mpfr_40("74.7"));
+    s_coefs.push_back(mpfr_40("-22.5"));
+    Polynomial<40> s(s_coefs);
+
+    // Subtract s from r (both precision 40, output precision 40)
+    r -= s;
+    std::vector<mpfr_40> diff_coefs = r.coefficients();
+    BOOST_TEST(r.degree() == 5);
+    BOOST_TEST(diff_coefs.size() == 6);
+    for (int i = 0; i < 6; ++i)
+    {
+        std::pair<std::string, int> coef = getNumberAsString<40>(diff_coefs[i]);
+        if (i == 0)
+        {      
+            BOOST_TEST((coef.first.rfind("7.650000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("7.649999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((coef.first.rfind("6.220000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("6.219999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 2)
+        {
+            BOOST_TEST((coef.first.rfind("8.829000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("8.828999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 3)
+        {
+            BOOST_TEST((coef.first.rfind("-8.042000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-8.041999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+        else if (i == 4)
+        {
+            BOOST_TEST((coef.first.rfind("5.250000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("5.249999999999999999999999999999999999999", 0) == 0)); 
+            BOOST_TEST(coef.second == 1);
+        }
+        else if (i == 5)
+        {
+            BOOST_TEST((coef.first.rfind("5.640000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("5.639999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+    } 
+}
+
+BOOST_AUTO_TEST_CASE(testInPlaceMultiplication)
+{
+    /*
+     * Test the in-place multiplication operator. 
+     */
+    typedef number<mpfr_float_backend<40> > mpfr_40;
+
+    // Define r and s as before 
+    std::vector<mpfr_40> r_coefs;           // 12.9 + 12.1*x + 0.169*x^2 - 5.72*x^3 + 30.0*x^4 + 56.4*x^5
+    r_coefs.push_back(mpfr_40("12.9"));
+    r_coefs.push_back(mpfr_40("12.1"));
+    r_coefs.push_back(mpfr_40("0.169"));
+    r_coefs.push_back(mpfr_40("-5.72"));
+    r_coefs.push_back(mpfr_40("30.0"));
+    r_coefs.push_back(mpfr_40("56.4")); 
+    Polynomial<40> r(r_coefs);
+    std::vector<mpfr_40> s_coefs;           // 5.25 + 5.88*x - 8.66*x^2 + 74.7*x^3 - 22.5*x^4
+    s_coefs.push_back(mpfr_40("5.25"));
+    s_coefs.push_back(mpfr_40("5.88"));
+    s_coefs.push_back(mpfr_40("-8.66"));
+    s_coefs.push_back(mpfr_40("74.7"));
+    s_coefs.push_back(mpfr_40("-22.5"));
+    Polynomial<40> s(s_coefs);
+
+    // Multiply r and s (both precision 40, output precision 40)
+    // Result: 67.725 + 139.377*x - 39.67875*x^2 + 829.80772*x^3 + 736.02286*x^4
+    //       + 262.4095*x^5 - 359.2545*x^6 + 1881.276*x^7 + 3538.08*x^8 - 1269*x^9
+    r *= s;
+    std::vector<mpfr_40> prod_coefs = r.coefficients();
+    BOOST_TEST(r.degree() == 9);
+    BOOST_TEST(prod_coefs.size() == 10);
+    for (int i = 0; i < 10; ++i)
+    {
+        std::pair<std::string, int> coef = getNumberAsString<40>(prod_coefs[i]);
+        if (i == 0)
+        {      
+            BOOST_TEST((coef.first.rfind("6.772500000000000000000000000000000000000", 0) == 0  || coef.first.rfind("6.772499999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((coef.first.rfind("1.393770000000000000000000000000000000000", 0) == 0  || coef.first.rfind("1.393769999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 2);
+        }
+        else if (i == 2)
+        {
+            BOOST_TEST((coef.first.rfind("-3.967875000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-3.967874999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+        else if (i == 3)
+        {
+            BOOST_TEST((coef.first.rfind("8.298077200000000000000000000000000000000", 0) == 0  || coef.first.rfind("8.298077199999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 2);
+        }
+        else if (i == 4)
+        {
+            BOOST_TEST((coef.first.rfind("7.360228600000000000000000000000000000000", 0) == 0  || coef.first.rfind("7.360228599999999999999999999999999999999", 0) == 0)); 
+            BOOST_TEST(coef.second == 2);
+        }
+        else if (i == 5)
+        {
+            BOOST_TEST((coef.first.rfind("2.624095000000000000000000000000000000000", 0) == 0  || coef.first.rfind("2.624094999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 2);
+        }
+        else if (i == 6)
+        {
+            BOOST_TEST((coef.first.rfind("-3.592545000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-3.592544999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 2);
+        }
+        else if (i == 7)
+        {
+            BOOST_TEST((coef.first.rfind("1.881276000000000000000000000000000000000", 0) == 0  || coef.first.rfind("1.881275999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 3);
+        }
+        else if (i == 8)
+        {
+            BOOST_TEST((coef.first.rfind("3.538080000000000000000000000000000000000", 0) == 0  || coef.first.rfind("3.538079999999999999999999999999999999999", 0) == 0)); 
+            BOOST_TEST(coef.second == 3);
+        }
+        else if (i == 9)
+        {
+            BOOST_TEST((coef.first.rfind("-1.269000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-1.268999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 3);
+        }
+    }
+}
+
