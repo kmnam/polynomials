@@ -575,6 +575,93 @@ BOOST_AUTO_TEST_CASE(testOperators)
     }
 }
 
+BOOST_AUTO_TEST_CASE(testScalarOperators)
+{
+    /*
+     * Test the scalar addition, subtraction, multiplication, and division
+     * operators.  
+     */
+    typedef number<mpfr_float_backend<20> > mpfr_20;
+    typedef number<mpfr_float_backend<30> > mpfr_30;
+    typedef number<mpfr_float_backend<40> > mpfr_40;
+
+    // Define p and r as before 
+    std::vector<mpfr_20> p_coefs;           // 41.5 - 74.6*x + 19.6*x^2
+    p_coefs.push_back(mpfr_20("41.5"));
+    p_coefs.push_back(mpfr_20("-74.6"));
+    p_coefs.push_back(mpfr_20("19.6"));
+    Polynomial<20> p(p_coefs);
+    std::vector<mpfr_40> r_coefs;           // 12.9 + 12.1*x + 0.169*x^2 - 5.72*x^3 + 30.0*x^4 + 56.4*x^5
+    r_coefs.push_back(mpfr_40("12.9"));
+    r_coefs.push_back(mpfr_40("12.1"));
+    r_coefs.push_back(mpfr_40("0.169"));
+    r_coefs.push_back(mpfr_40("-5.72"));
+    r_coefs.push_back(mpfr_40("30.0"));
+    r_coefs.push_back(mpfr_40("56.4")); 
+    Polynomial<40> r(r_coefs);
+
+    // Define two scalars, a and b
+    mpfr_30 a("-72.6");
+    mpfr_40 b("-3.73");
+
+    // Add a to p to obtain result of precision 40
+    Polynomial<40> p_plus_a = p.operator+<30, 40>(a);
+    std::vector<mpfr_40> sum_coefs = p_plus_a.coefficients();
+    BOOST_TEST(p_plus_a.degree() == 2);
+    BOOST_TEST(sum_coefs.size() == 3);
+    for (int i = 0; i < 3; ++i)
+    {
+        std::pair<std::string, int> coef = getNumberAsString<40>(sum_coefs[i]);
+        if (i == 0)
+            BOOST_TEST((coef.first.rfind("-3.110000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-3.109999999999999999999999999999999999999", 0) == 0));
+        else if (i == 1)
+            BOOST_TEST((coef.first.rfind("-7.460000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-7.459999999999999999999999999999999999999", 0) == 0));
+        else if (i == 2)
+            BOOST_TEST((coef.first.rfind("1.960000000000000000000000000000000000000", 0) == 0  || coef.first.rfind("1.959999999999999999999999999999999999999", 0) == 0));
+        BOOST_TEST(coef.second == 1);
+    }
+
+    // Add b to r (both precision 40, output precision 40)
+    Polynomial<40> r_plus_b = r + b;
+    sum_coefs = r_plus_b.coefficients();
+    BOOST_TEST(r_plus_b.degree() == 5);
+    BOOST_TEST(sum_coefs.size() == 6);
+    for (int i = 0; i < 6; ++i)
+    {
+        std::pair<std::string, int> coef = getNumberAsString<40>(sum_coefs[i]);
+        if (i == 0)
+        {
+            BOOST_TEST((coef.first.rfind("9.170000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("9.169999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((coef.first.rfind("1.210000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("1.209999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+        else if (i == 2)
+        {
+            BOOST_TEST((coef.first.rfind("1.690000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("1.689999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == -1);
+        }
+        else if (i == 3)
+        {
+            BOOST_TEST((coef.first.rfind("-5.720000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-5.719999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 4)
+        {
+            BOOST_TEST((coef.first.rfind("3.000000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("2.999999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+        else if (i == 5)
+        {
+            BOOST_TEST((coef.first.rfind("5.640000000000000000000000000000000000000", 0) == 0 || coef.first.rfind("5.639999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+    }
+}
+
 BOOST_AUTO_TEST_CASE(testInPlaceAddition)
 {
     /*
@@ -791,4 +878,5 @@ BOOST_AUTO_TEST_CASE(testInPlaceMultiplication)
         }
     }
 }
+
 
