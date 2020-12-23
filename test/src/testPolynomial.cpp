@@ -867,6 +867,7 @@ BOOST_AUTO_TEST_CASE(testScalarOperators)
     }
 
     // Multiply b by r (both precision 40, output precision 40)
+    // Result: -48.117 - 45.133*x - 0.63037*x^2 + 21.3356*x^3 - 111.9*x^4 - 210.372*x^5
     Polynomial<40> b_times_r = b * r;
     prod_coefs = b_times_r.coefficients();
     BOOST_TEST(b_times_r.degree() == 5);
@@ -903,6 +904,80 @@ BOOST_AUTO_TEST_CASE(testScalarOperators)
         {
             BOOST_TEST((coef.first.rfind("-2.103720000000000000000000000000000000000", 0) == 0 || coef.first.rfind("-2.103719999999999999999999999999999999999", 0) == 0));
             BOOST_TEST(coef.second == 2);
+        }
+    }
+
+    // Divide p by a to obtain result of precision 40
+    // Result: -0.5716253443526170798898071625344352617080
+    //         + 1.027548209366391184573002754820936639118*x
+    //         - 0.2699724517906336088154269972451790633609*x^2
+    Polynomial<40> p_div_a = p.operator/<30, 40>(a);
+    std::vector<mpfr_40> quot_coefs = p_div_a.coefficients();
+    BOOST_TEST(p_div_a.degree() == 2);
+    BOOST_TEST(quot_coefs.size() == 3);
+    for (int i = 0; i < 3; ++i)
+    {
+        std::pair<std::string, int> coef = getNumberAsString<40>(quot_coefs[i]);
+        if (i == 0)
+        {
+            BOOST_TEST((coef.first.rfind("-5.716253443526170798898071625344352617080", 0) == 0 || coef.first.rfind("-5.716253443526170798898071625344352617079", 0) == 0));
+            BOOST_TEST(coef.second == -1);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((coef.first.rfind("1.027548209366391184573002754820936639118", 0) == 0 || coef.first.rfind("1.027548209366391184573002754820936639117", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 2)
+        {
+            BOOST_TEST((coef.first.rfind("-2.699724517906336088154269972451790633609", 0) == 0 || coef.first.rfind("-2.699724517906336088154269972451790633608", 0) == 0));
+            BOOST_TEST(coef.second == -1);
+        }
+    }
+
+    // Divide r by b (both precision 40, output precision 40)
+    // Result: -3.458445040214477211796246648793565683646
+    //         - 3.243967828418230563002680965147453083110*x
+    //         - 0.04530831099195710455764075067024128686327*x^2
+    //         + 1.533512064343163538873994638069705093834*x^3
+    //         - 8.042895442359249329758713136729222520107*x^4
+    //         - 15.12064343163538873994638069705093833780*x^5
+    Polynomial<40> r_div_b = r / b;
+    quot_coefs = r_div_b.coefficients();
+    BOOST_TEST(r_div_b.degree() == 5);
+    BOOST_TEST(quot_coefs.size() == 6);
+    for (int i = 0; i < 6; ++i)
+    {
+        std::pair<std::string, int> coef = getNumberAsString<40>(quot_coefs[i]);
+        if (i == 0)
+        {
+            BOOST_TEST((coef.first.rfind("-3.458445040214477211796246648793565683646", 0) == 0 || coef.first.rfind("-3.458445040214477211796246648793565683645", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((coef.first.rfind("-3.243967828418230563002680965147453083110", 0) == 0 || coef.first.rfind("-3.243967828418230563002680965147453083109", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 2)
+        {
+            BOOST_TEST((coef.first.rfind("-4.530831099195710455764075067024128686327", 0) == 0 || coef.first.rfind("-4.530831099195710455764075067024128686326", 0) == 0));
+            BOOST_TEST(coef.second == -2);
+        }
+        else if (i == 3)
+        {
+            BOOST_TEST((coef.first.rfind("1.533512064343163538873994638069705093834", 0) == 0 || coef.first.rfind("1.533512064343163538873994638069705093833", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 4)
+        {
+            BOOST_TEST((coef.first.rfind("-8.042895442359249329758713136729222520107", 0) == 0 || coef.first.rfind("-8.042895442359249329758713136729222520106", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 5)
+        {
+            BOOST_TEST((coef.first.rfind("-1.512064343163538873994638069705093833780", 0) == 0 || coef.first.rfind("-1.512064343163538873994638069705093833779", 0) == 0));
+            BOOST_TEST(coef.second == 1);
         }
     }
 }
