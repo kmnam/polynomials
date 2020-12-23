@@ -1594,3 +1594,155 @@ BOOST_AUTO_TEST_CASE(testSolveCubic)
         }
     }
 }
+
+BOOST_AUTO_TEST_CASE(testSolveWeierstrass)
+{
+    /*
+     * Get the roots of a quintic polynomial with Weierstrass' method. 
+     */
+    typedef number<mpfr_float_backend<40> >  mpfr_40;
+    typedef number<mpc_complex_backend<40> > mpc_40;
+    typedef number<mpfr_float_backend<50> >  mpfr_50;
+    typedef number<mpc_complex_backend<50> > mpc_50;
+
+    // Define r as before 
+    std::vector<mpfr_40> r_coefs;           // 12.9 + 12.1*x + 0.169*x^2 - 5.72*x^3 + 30.0*x^4 + 56.4*x^5
+    r_coefs.push_back(mpfr_40("12.9"));
+    r_coefs.push_back(mpfr_40("12.1"));
+    r_coefs.push_back(mpfr_40("0.169"));
+    r_coefs.push_back(mpfr_40("-5.72"));
+    r_coefs.push_back(mpfr_40("30.0"));
+    r_coefs.push_back(mpfr_40("56.4")); 
+    Polynomial<40> r(r_coefs);
+
+    // Get roots with same precision (40) as coefficients
+    // Solutions: -0.8011551530834036092615229000431606689577,
+    //            -0.4261332773189638878958458634920648066143 - 0.5703930114618632364573561806651850823911*i
+    //            -0.4261332773189638878958458634920648066143 + 0.5703930114618632364573561806651850823911*i
+    //            0.5607534070521550542287349730881132261995 - 0.4987237601604699794368211275750465313412*i
+    //            0.5607534070521550542287349730881132261995 + 0.4987237601604699794368211275750465313412*i
+    std::pair<std::vector<mpc_40>, bool> roots = r.roots(Weierstrass, 1000, 0.0, 1e-40);
+    BOOST_TEST(roots.second);    // Check for convergence first, then sort by real/imaginary parts
+    std::sort(roots.first.begin(), roots.first.end(), [](mpc_40 a, mpc_40 b)
+        {
+            if (a.real() == b.real()) return (a.imag() < b.imag());
+            else                      return (a.real() < b.real());
+        }
+    );
+    for (int i = 0; i < 5; ++i)
+    {
+        std::pair<std::string, int> root_real = getNumberAsString<40>(roots.first[i].real());
+        std::pair<std::string, int> root_imag = getNumberAsString<40>(roots.first[i].imag());
+        
+        if (i == 0)
+        {
+            BOOST_TEST((root_real.first.rfind("-8.011551530834036092615229000431606689577", 0) == 0 || root_real.first.rfind("-8.011551530834036092615229000431606689576", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST(boost::multiprecision::abs(roots.first[i].imag()) < 1e-40);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((root_real.first.rfind("-4.261332773189638878958458634920648066143", 0) == 0 || root_real.first.rfind("-4.261332773189638878958458634920648066142", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("-5.703930114618632364573561806651850823911", 0) == 0 || root_imag.first.rfind("-5.703930114618632364573561806651850823910", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+        else if (i == 2)
+        {
+            BOOST_TEST((root_real.first.rfind("-4.261332773189638878958458634920648066143", 0) == 0 || root_real.first.rfind("-4.261332773189638878958458634920648066142", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("5.703930114618632364573561806651850823911", 0) == 0  || root_imag.first.rfind("5.703930114618632364573561806651850823910", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+        else if (i == 3)
+        {
+            BOOST_TEST((root_real.first.rfind("5.607534070521550542287349730881132261995", 0) == 0  || root_real.first.rfind("5.607534070521550542287349730881132261994", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("-4.987237601604699794368211275750465313412", 0) == 0 || root_imag.first.rfind("-4.987237601604699794368211275750465313411", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+        else if (i == 4)
+        {
+            BOOST_TEST((root_real.first.rfind("5.607534070521550542287349730881132261995", 0) == 0  || root_real.first.rfind("5.607534070521550542287349730881132261994", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("4.987237601604699794368211275750465313412", 0) == 0  || root_imag.first.rfind("4.987237601604699794368211275750465313411", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+    }
+}
+
+BOOST_AUTO_TEST_CASE(testSolveAberth)
+{
+    /*
+     * Get the roots of a quintic polynomial with Aberth's method. 
+     */
+    typedef number<mpfr_float_backend<40> >  mpfr_40;
+    typedef number<mpc_complex_backend<40> > mpc_40;
+    typedef number<mpfr_float_backend<50> >  mpfr_50;
+    typedef number<mpc_complex_backend<50> > mpc_50;
+
+    // Define r as before 
+    std::vector<mpfr_40> r_coefs;           // 12.9 + 12.1*x + 0.169*x^2 - 5.72*x^3 + 30.0*x^4 + 56.4*x^5
+    r_coefs.push_back(mpfr_40("12.9"));
+    r_coefs.push_back(mpfr_40("12.1"));
+    r_coefs.push_back(mpfr_40("0.169"));
+    r_coefs.push_back(mpfr_40("-5.72"));
+    r_coefs.push_back(mpfr_40("30.0"));
+    r_coefs.push_back(mpfr_40("56.4")); 
+    Polynomial<40> r(r_coefs);
+
+    // Get roots with same precision (40) as coefficients
+    // Solutions: -0.8011551530834036092615229000431606689577,
+    //            -0.4261332773189638878958458634920648066143 - 0.5703930114618632364573561806651850823911*i
+    //            -0.4261332773189638878958458634920648066143 + 0.5703930114618632364573561806651850823911*i
+    //            0.5607534070521550542287349730881132261995 - 0.4987237601604699794368211275750465313412*i
+    //            0.5607534070521550542287349730881132261995 + 0.4987237601604699794368211275750465313412*i
+    std::pair<std::vector<mpc_40>, bool> roots = r.roots(Aberth, 1000, 0.0, 1e-40);
+    BOOST_TEST(roots.second);    // Check for convergence first, then sort by real/imaginary parts
+    std::sort(roots.first.begin(), roots.first.end(), [](mpc_40 a, mpc_40 b)
+        {
+            if (a.real() == b.real()) return (a.imag() < b.imag());
+            else                      return (a.real() < b.real());
+        }
+    );
+    for (int i = 0; i < 5; ++i)
+    {
+        std::pair<std::string, int> root_real = getNumberAsString<40>(roots.first[i].real());
+        std::pair<std::string, int> root_imag = getNumberAsString<40>(roots.first[i].imag());
+        
+        if (i == 0)
+        {
+            BOOST_TEST((root_real.first.rfind("-8.011551530834036092615229000431606689577", 0) == 0 || root_real.first.rfind("-8.011551530834036092615229000431606689576", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST(boost::multiprecision::abs(roots.first[i].imag()) < 1e-40);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((root_real.first.rfind("-4.261332773189638878958458634920648066143", 0) == 0 || root_real.first.rfind("-4.261332773189638878958458634920648066142", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("-5.703930114618632364573561806651850823911", 0) == 0 || root_imag.first.rfind("-5.703930114618632364573561806651850823910", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+        else if (i == 2)
+        {
+            BOOST_TEST((root_real.first.rfind("-4.261332773189638878958458634920648066143", 0) == 0 || root_real.first.rfind("-4.261332773189638878958458634920648066142", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("5.703930114618632364573561806651850823911", 0) == 0  || root_imag.first.rfind("5.703930114618632364573561806651850823910", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+        else if (i == 3)
+        {
+            BOOST_TEST((root_real.first.rfind("5.607534070521550542287349730881132261995", 0) == 0  || root_real.first.rfind("5.607534070521550542287349730881132261994", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("-4.987237601604699794368211275750465313412", 0) == 0 || root_imag.first.rfind("-4.987237601604699794368211275750465313411", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+        else if (i == 4)
+        {
+            BOOST_TEST((root_real.first.rfind("5.607534070521550542287349730881132261995", 0) == 0  || root_real.first.rfind("5.607534070521550542287349730881132261994", 0) == 0));
+            BOOST_TEST(root_real.second == -1);
+            BOOST_TEST((root_imag.first.rfind("4.987237601604699794368211275750465313412", 0) == 0  || root_imag.first.rfind("4.987237601604699794368211275750465313411", 0) == 0));
+            BOOST_TEST(root_imag.second == -1);
+        }
+    }
+}
