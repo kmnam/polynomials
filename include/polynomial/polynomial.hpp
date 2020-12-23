@@ -476,6 +476,82 @@ class Polynomial
         // Coefficients of the polynomial stored in ascending order of power
         std::vector<number<mpfr_float_backend<N> > > coefs;
 
+        std::pair<std::vector<number<mpc_complex_backend<N> > >, bool> rootsWeierstrass(int max_iter,
+                                                                                        double atol,
+                                                                                        double rtol)
+        {
+            /*
+             * Run Weierstrass' method on the given polynomial.
+             *
+             * Input and output precisions are assumed to be the same.  
+             */
+            typedef number<mpfr_float_backend<N> >  RTN;
+            typedef number<mpc_complex_backend<N> > CTN;
+
+            bool converged = false;
+            bool quadratic = false;
+            bool within_tol = false;
+            int iter = 0;
+
+            // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
+            // TODO Fix this to work with Bini's initialization?
+            std::vector<CTN> inits;
+            CTN base("0.4", "0.9");
+            for (int i = 0; i < this->deg; ++i)
+            {
+                CTN init = boost::multiprecision::pow(base, i);
+                inits.push_back(init);
+            }
+           
+            // Set up vectors of coefficients and roots at given precision (N) 
+            std::vector<RTN> coefs;
+            RTN lead_coef = this->coefs[this->coefs.size() - 1];
+            for (int i = 0; i < this->coefs.size() - 1; ++i)
+                coefs.push_back(this->coefs[i] / lead_coef);
+            coefs.push_back(RTN("1.0"));
+            std::vector<CTN> roots(inits);
+            std::vector<CTN> new_roots;
+
+            // Run the algorithm until all roots exhibit quadratic convergence
+            // or the desired number of iterations is reached
+            std::vector<double> delta, new_delta;
+            for (int i = 0; i < this->deg; ++i) delta.push_back(0.0);
+            while (iter < max_iter && !converged)
+            {
+                std::pair<std::vector<CTN>, std::vector<double> > result = weierstrass<N>(coefs, roots);
+                new_roots = result.first;
+                new_delta = result.second;
+                iter++;
+
+                // Check that the change is less than the square of the 
+                // previous change for each root
+                quadratic = true;
+                for (int j = 0; j < this->deg; ++j)
+                {
+                    if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
+                    {
+                        quadratic = false;
+                        break;
+                    }
+                }
+                // Check that the change is within the given tolerances
+                within_tol = true;
+                for (int j = 0; j < this->deg; ++j)
+                {
+                    if (new_delta[j] > atol + rtol * boost::multiprecision::abs(roots[j]))
+                    {
+                        within_tol = false;
+                        break;
+                    }
+                }
+                if (quadratic || within_tol) converged = true; // TODO Want both?
+                roots = new_roots;
+                delta = new_delta;
+            }
+
+            return std::make_pair(roots, converged);
+        }
+
         template <unsigned M>
         std::pair<std::vector<number<mpc_complex_backend<M> > >, bool> rootsWeierstrass(int max_iter,
                                                                                         double atol,
@@ -495,9 +571,10 @@ class Polynomial
             // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
             // TODO Fix this to work with Bini's initialization?
             std::vector<CTM> inits;
+            CTM base("0.4", "0.9");
             for (int i = 0; i < this->deg; ++i)
             {
-                CTM init = boost::multiprecision::pow(floatToNumber<double, M>(std::complex<double>(0.4, 0.9)), i);
+                CTM init = boost::multiprecision::pow(base, i);
                 inits.push_back(init);
             }
            
@@ -550,6 +627,86 @@ class Polynomial
             return std::make_pair(roots, converged);
         }
 
+        std::pair<std::vector<number<mpc_complex_backend<N> > >, bool> rootsAberth(int max_iter,
+                                                                                   double atol,
+                                                                                   double rtol)
+        {
+            /*
+             * Run the Aberth-Ehrlich method on the given polynomial.
+             *
+             * Input and output precisions are assumed to be the same. 
+             */
+            typedef number<mpfr_float_backend<N> >  RTN;
+            typedef number<mpc_complex_backend<N> > CTN;
+
+            bool converged = false;
+            bool quadratic = false;
+            bool within_tol = false;
+            int iter = 0;
+
+            // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
+            // TODO Fix this to work with Bini's initialization?
+            std::vector<CTN> inits;
+            CTN base("0.4", "0.9");
+            for (int i = 0; i < this->deg; ++i)
+            {
+                CTN init = boost::multiprecision::pow(base, i);
+                inits.push_back(init);
+            }
+           
+            // Set up vectors of coefficients and roots at given precision (M)
+            std::vector<RTN> dcoefs; 
+            for (int i = 0; i < this->coefs.size() - 1; ++i)
+                dcoefs.push_back((i + 1) * this->coefs[i+1]);
+            std::vector<CTN> roots(inits);
+            std::vector<CTN> new_roots;
+
+            // Run the algorithm until all roots exhibit quadratic convergence
+            // or the desired number of iterations is reached
+            std::vector<double> delta, new_delta;
+            for (int i = 0; i < this->deg; ++i) delta.push_back(0.0);
+            while (iter < max_iter && !converged)
+            {
+                std::pair<std::vector<CTN>, std::vector<double> > result = aberth<N>(this->coefs, dcoefs, roots);
+                new_roots = result.first;
+                new_delta = result.second;
+                iter++;
+
+                // Check that the change is less than the square of the 
+                // previous change for each root
+                for (int j = 0; j < this->deg; ++j)
+                {
+                    quadratic = true;
+                    if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
+                    {
+                        quadratic = false;
+                        break;
+                    }
+                }
+                // Check that the change is within the given tolerances
+                within_tol = true;
+                for (int j = 0; j < this->deg; ++j)
+                {
+                    if (new_delta[j] > atol + rtol * boost::multiprecision::abs(roots[j]))
+                    {
+                        within_tol = false;
+                        break;
+                    }
+                }
+                if (quadratic || within_tol) converged = true;  // TODO Want both?
+                roots = new_roots;
+                delta = new_delta;
+            }
+            // Sharpen each root for the given number of iterations 
+            //for (unsigned i = 0; i < sharpen_iter; ++i)
+            //{
+            //    auto result = newton<std::complex<double> >(coefs, dcoefs, roots);
+            //    roots = result.first;
+            //}
+
+            return std::make_pair(roots, converged);
+        }
+
         template <unsigned M>
         std::pair<std::vector<number<mpc_complex_backend<M> > >, bool> rootsAberth(int max_iter,
                                                                                    double atol,
@@ -569,9 +726,10 @@ class Polynomial
             // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
             // TODO Fix this to work with Bini's initialization?
             std::vector<CTM> inits;
+            CTM base("0.4", "0.9");
             for (int i = 0; i < this->deg; ++i)
             {
-                CTM init = boost::multiprecision::pow(floatToNumber<double, M>(std::complex<double>(0.4, 0.9)), i);
+                CTM init = boost::multiprecision::pow(base, i);
                 inits.push_back(init);
             }
            
@@ -629,7 +787,6 @@ class Polynomial
 
             return std::make_pair(roots, converged);
         }
-
 
     public:
         Polynomial()
@@ -1298,11 +1455,11 @@ class Polynomial
             }
             else if (method == Aberth)
             {
-                return this->rootsAberth<N>(max_iter, atol, rtol);
+                return this->rootsAberth(max_iter, atol, rtol);
             }
             else
             {
-                return this->rootsWeierstrass<N>(max_iter, atol, rtol);
+                return this->rootsWeierstrass(max_iter, atol, rtol);
             }
         }
 
