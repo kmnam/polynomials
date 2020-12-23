@@ -949,7 +949,31 @@ class Polynomial
             return *this;
         }
 
-        template <unsigned M = N, unsigned P = N>
+        Polynomial<N> operator-(const Polynomial<N>& q) const 
+        {
+            /*
+             * Return the result of subtracting by the same-precision polynomial q. 
+             */
+            typedef number<mpfr_float_backend<N> > RTN;
+
+            // Copy over the coefficients into new vectors and resize as necessary 
+            std::vector<RTN> p_coefs, q_coefs;
+            p_coefs = this->coefs;
+            q_coefs = q.coefficients(); 
+            if (this->deg > q.degree())
+                q_coefs = appendZeros<RTN>(q_coefs, this->deg - q.degree());
+            else if (this->deg < q.degree())
+                p_coefs = appendZeros<RTN>(p_coefs, q.degree() - this->deg);
+
+            // Instantiate the difference polynomial
+            std::vector<RTN> diff_coefs;
+            for (int i = 0; i < p_coefs.size(); ++i)
+                diff_coefs.push_back(p_coefs[i] - q_coefs[i]);
+
+            return Polynomial<N>(diff_coefs);
+        }
+
+        template <unsigned M, unsigned P>
         Polynomial<P> operator-(const Polynomial<M>& q) const
         {
             /*
@@ -975,7 +999,20 @@ class Polynomial
             return Polynomial<P>(diff_coefs);
         }
 
-        template <unsigned M = N, unsigned P = N>
+        Polynomial<N> operator-(const number<mpfr_float_backend<N> > s) const
+        {
+            /*
+             * Return the result of subtracting by the same-precision scalar s.
+             */
+            std::vector<number<mpfr_float_backend<N> > > diff_coefs;
+            diff_coefs.push_back(this->coefs[0] - s);
+            for (int i = 1; i < this->coefs.size(); ++i)
+                diff_coefs.push_back(this->coefs[i]);
+
+            return Polynomial<N>(diff_coefs);
+        }
+
+        template <unsigned M, unsigned P>
         Polynomial<P> operator-(const number<mpfr_float_backend<M> > s) const
         {
             /*
@@ -1030,7 +1067,34 @@ class Polynomial
             return *this;
         }
 
-        template <unsigned M = N, unsigned P = N>
+        Polynomial<N> operator*(const Polynomial<N>& q) const
+        {
+            /*
+             * Return the result of multiplying by the same-precision polynomial q.
+             *
+             * TODO Replace with a method based on FFT. 
+             */
+            typedef number<mpfr_float_backend<N> > RTN;
+
+            int p_deg = this->deg;
+            int q_deg = q.degree();
+            std::vector<RTN> p_coefs, q_coefs, pq_coefs;
+            for (auto&& coef : this->coefs)      p_coefs.push_back(coef);
+            for (auto&& coef : q.coefficients()) q_coefs.push_back(coef);
+
+            // Compute product coefficients 
+            for (int i = 0; i < p_deg + q_deg + 1; ++i) pq_coefs.push_back(0.0);
+            for (int i = 0; i <= p_deg; ++i)
+            {
+                for (int j = 0; j <= q_deg; ++j)
+                {
+                    pq_coefs[i + j] += p_coefs[i] * q_coefs[j];
+                }
+            }
+            return Polynomial<N>(pq_coefs);
+        }
+
+        template <unsigned M, unsigned P>
         Polynomial<P> operator*(const Polynomial<M>& q) const
         {
             /*
@@ -1059,7 +1123,19 @@ class Polynomial
             return Polynomial<P>(pq_coefs);
         }
 
-        template <unsigned M = N, unsigned P = N>
+        Polynomial<N> operator*(const number<mpfr_float_backend<N> > s) const
+        {
+            /*
+             * Return the result of multiplying by the same-precision scalar s.
+             */
+            typedef number<mpfr_float_backend<N> > RTN;
+
+            std::vector<RTN> p_coefs;
+            for (auto&& coef : this->coefs) p_coefs.push_back(coef * s);
+            return Polynomial<N>(p_coefs);
+        }
+
+        template <unsigned M, unsigned P>
         Polynomial<P> operator*(const number<mpfr_float_backend<M> > s) const
         {
             /*
@@ -1116,7 +1192,19 @@ class Polynomial
             return *this;
         }
 
-        template <unsigned M = N, unsigned P = N>
+        Polynomial<N> operator/(const number<mpfr_float_backend<N> > s) const
+        {
+            /*
+             * Return the result of dividing by the same-precision scalar s.
+             */
+            typedef number<mpfr_float_backend<N> > RTN;
+
+            std::vector<RTN> p_coefs;
+            for (auto&& coef : this->coefs) p_coefs.push_back(coef / s);
+            return Polynomial<N>(p_coefs);
+        }
+
+        template <unsigned M, unsigned P>
         Polynomial<P> operator/(const number<mpfr_float_backend<M> > s) const
         {
             /*
@@ -1218,5 +1306,14 @@ class Polynomial
             }
         }
 };
+
+template <unsigned N>
+Polynomial<N> operator*(const number<mpfr_float_backend<N> >& s, Polynomial<N> rhs)
+{
+    /*
+     * Left-hand multiplication by the same-precision scalar s. 
+     */
+    return rhs * s;
+}
 
 #endif
