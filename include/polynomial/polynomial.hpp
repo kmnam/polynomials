@@ -1049,7 +1049,7 @@ class Polynomial
 
             // Update polynomial coefficients
             for (int i = 0; i < p_coefs.size(); ++i)
-                p_coefs[i] += q_coefs[i];
+                p_coefs[i] -= q_coefs[i];
             this->coefs = removeTrailingZeros<RTN>(p_coefs);
             this->deg = this->coefs.size() - 1;
             return *this;
