@@ -1376,3 +1376,69 @@ BOOST_AUTO_TEST_CASE(testInPlaceScalarMultiplication)
         }
     }
 }
+
+BOOST_AUTO_TEST_CASE(testInPlaceScalarDivision)
+{
+    /*
+     * Test the in-place scalar division operator. 
+     */
+    typedef number<mpfr_float_backend<40> > mpfr_40;
+
+    // Define r and b as before 
+    std::vector<mpfr_40> r_coefs;           // 12.9 + 12.1*x + 0.169*x^2 - 5.72*x^3 + 30.0*x^4 + 56.4*x^5
+    r_coefs.push_back(mpfr_40("12.9"));
+    r_coefs.push_back(mpfr_40("12.1"));
+    r_coefs.push_back(mpfr_40("0.169"));
+    r_coefs.push_back(mpfr_40("-5.72"));
+    r_coefs.push_back(mpfr_40("30.0"));
+    r_coefs.push_back(mpfr_40("56.4")); 
+    Polynomial<40> r(r_coefs);
+    mpfr_40 b("-3.73");
+
+    // Divide r by b (both precision 40, output precision 40)
+    // Result: -3.458445040214477211796246648793565683646
+    //         - 3.243967828418230563002680965147453083110*x
+    //         - 0.04530831099195710455764075067024128686327*x^2
+    //         + 1.533512064343163538873994638069705093834*x^3
+    //         - 8.042895442359249329758713136729222520107*x^4
+    //         - 15.12064343163538873994638069705093833780*x^5
+    r /= b;
+    std::vector<mpfr_40> quot_coefs = r.coefficients();
+    BOOST_TEST(r.degree() == 5);
+    BOOST_TEST(quot_coefs.size() == 6);
+    for (int i = 0; i < 6; ++i)
+    {
+        std::pair<std::string, int> coef = getNumberAsString<40>(quot_coefs[i]);
+        if (i == 0)
+        {
+            BOOST_TEST((coef.first.rfind("-3.458445040214477211796246648793565683646", 0) == 0 || coef.first.rfind("-3.458445040214477211796246648793565683645", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 1)
+        {
+            BOOST_TEST((coef.first.rfind("-3.243967828418230563002680965147453083110", 0) == 0 || coef.first.rfind("-3.243967828418230563002680965147453083109", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 2)
+        {
+            BOOST_TEST((coef.first.rfind("-4.530831099195710455764075067024128686327", 0) == 0 || coef.first.rfind("-4.530831099195710455764075067024128686326", 0) == 0));
+            BOOST_TEST(coef.second == -2);
+        }
+        else if (i == 3)
+        {
+            BOOST_TEST((coef.first.rfind("1.533512064343163538873994638069705093834", 0) == 0 || coef.first.rfind("1.533512064343163538873994638069705093833", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 4)
+        {
+            BOOST_TEST((coef.first.rfind("-8.042895442359249329758713136729222520107", 0) == 0 || coef.first.rfind("-8.042895442359249329758713136729222520106", 0) == 0));
+            BOOST_TEST(coef.second == 0);
+        }
+        else if (i == 5)
+        {
+            BOOST_TEST((coef.first.rfind("-1.512064343163538873994638069705093833780", 0) == 0 || coef.first.rfind("-1.512064343163538873994638069705093833779", 0) == 0));
+            BOOST_TEST(coef.second == 1);
+        }
+    }
+}
+
