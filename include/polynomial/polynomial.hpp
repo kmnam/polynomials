@@ -413,8 +413,9 @@ std::vector<number<mpc_complex_backend<M> > > bini(const std::vector<number<mpfr
         int l = hull_x[i+1];
         for (int j = 0; j < l - k; ++j)
         {
-            RTM theta = floatToNumber<double>((two_pi / (l - k)) * j + (two_pi * i / n) + dist(rng));
-            CTM z = floatToNumber<double, M>(std::complex<double>(std::cos(theta), std::sin(theta)));
+            double x = (two_pi / (l - k)) * j + (two_pi * i / n) + dist(rng); 
+            RTM theta = floatToNumber<double, M>(x);
+            CTM z(boost::multiprecision::cos(theta), boost::multiprecision::sin(theta));
             inits.push_back(floatToNumber<double, M>(u[i]) * z);
         }
     }
