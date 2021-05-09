@@ -8,8 +8,10 @@
 #include <algorithm>
 #include <stdexcept>
 #include <limits>
-#include <boost/random.hpp>
+#include <boost/math/constants/constants.hpp>
+#include <boost/multiprecision/mpfr.hpp>
 #include <boost/multiprecision/mpc.hpp>
+#include <boost/random.hpp>
 
 /*
  * A Polynomial class template with arbitrary real coefficients.
@@ -20,8 +22,9 @@
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     4/12/2021
+ *     5/9/2021
  */
+using boost::math::constants::pi; 
 using boost::multiprecision::number;
 using boost::multiprecision::mpfr_float_backend;
 using boost::multiprecision::mpc_complex_backend;
@@ -150,26 +153,109 @@ number<mpc_complex_backend<N> > cuberoot(number<mpc_complex_backend<N> > z)
 }
 
 template <unsigned N>
+std::pair<number<mpfr_float_backend<N> >, number<mpfr_float_backend<N> > > depress(const number<mpfr_float_backend<N> > b,
+                                                                                   const number<mpfr_float_backend<N> > c,
+                                                                                   const number<mpfr_float_backend<N> > d)
+{
+    /*
+     * Depress the given cubic, returning a polynomial t^3 + p*t + q in the 
+     * transformed variable t = x + b / 3. 
+     */
+    number<mpfr_float_backend<N> > p = (3 * c - b * b) / 3; 
+    number<mpfr_float_backend<N> > q = (2 * b * b * b - 9 * b * c + 27 * d) / 27; 
+    return std::make_pair(p, q); 
+}
+
+template <unsigned N>
+std::tuple<number<mpfr_float_backend<N> >, number<mpfr_float_backend<N> >, number<mpfr_float_backend<N> > >
+    viete(const number<mpfr_float_backend<N> > p, const number<mpfr_float_backend<N> > q)
+{
+    /*
+     * Solve the given depressed cubic, t^3 + p*t + q, with Viete's formula. 
+     */
+    using boost::multiprecision::pow; 
+    using boost::multiprecision::sqrt; 
+    using boost::multiprecision::cos; 
+    using boost::multiprecision::acos;
+
+    number<mpfr_float_backend<N> > one_third = number<mpfr_float_backend<N> >("1.0") / number<mpfr_float_backend<N> >("3.0");
+    number<mpfr_float_backend<N> > sqrt_p_third = sqrt(-p * one_third);
+    std::function<number<mpfr_float_backend<N> >(int)> func = [one_third, sqrt_p_third, p, q](int k)
+    {
+        number<mpfr_float_backend<N> > c = 2 * one_third * boost::math::constants::pi<number<mpfr_float_backend<N> > >() * k;
+        number<mpfr_float_backend<N> > three_over_two = number<mpfr_float_backend<N> >("1.5");
+        number<mpfr_float_backend<N> > root = 2 * sqrt_p_third * cos(one_third * acos(three_over_two * (q / p) / sqrt_p_third) - c); 
+        return root; 
+    };
+    return std::make_tuple(func(0), func(1), func(2)); 
+}
+
+template <unsigned N>
+std::pair<number<mpfr_float_backend<N> >, number<mpc_complex_backend<N> > >
+    cardano(const number<mpfr_float_backend<N> > p, const number<mpfr_float_backend<N> > q)
+{
+    /*
+     * Solve the given depressed cubic, t^3 + p*t + q, with Cardano's formula. 
+     */
+    using boost::multiprecision::pow; 
+    using boost::multiprecision::sqrt; 
+    using boost::multiprecision::cbrt; 
+
+    number<mpfr_float_backend<N> > c = sqrt(pow(q, 2) / 4 + pow(p, 3) / 27); 
+    number<mpfr_float_backend<N> > x = cbrt((-q / 2) + c);
+    number<mpfr_float_backend<N> > y = cbrt((-q / 2) - c);
+
+    // The single real root in this case is given by the sum of these cube roots
+    number<mpfr_float_backend<N> > root0 = x + y; 
+
+    // One of the imaginary roots is given by multiplying one of the cube roots by 
+    // the primitive cube root of unity (the other is the conjugate)
+    number<mpfr_float_backend<N> > three("3.0"); 
+    number<mpc_complex_backend<N> > root1(-0.5 * x, 0.5 * sqrt(three));
+
+    return std::make_pair(root0, root1); 
+}
+
+template <unsigned N>
 std::vector<number<mpc_complex_backend<N> > > cubic(const number<mpfr_float_backend<N> > b,
                                                     const number<mpfr_float_backend<N> > c,
                                                     const number<mpfr_float_backend<N> > d)
 {
     /*
-     * Solve the given monic cubic, x^3 + b*x^2 + c*x + d = 0. 
+     * Solve the given monic cubic polynomial, x^3 + b*x^2 + c*x + d, by depressing
+     * it and applying either Viete's formula or Cardano's formula. 
      */
-    typedef number<mpfr_float_backend<N> >  RTN;
-    typedef number<mpc_complex_backend<N> > CTN;
-    std::vector<CTN> roots;
-    const RTN sqrt3 = boost::multiprecision::sqrt(RTN("3.0"));
-    RTN q = (3 * c - b * b) / 9;
-    RTN r = (9 * b * c - 27 * d - 2 * boost::multiprecision::pow(b, 3)) / 54;
-    RTN p = boost::multiprecision::pow(q, 3) + boost::multiprecision::pow(r, 2);
-    CTN s = cuberoot<N>(r + boost::multiprecision::sqrt(CTN(p, 0.0)));
-    CTN t = cuberoot<N>(r - boost::multiprecision::sqrt(CTN(p, 0.0)));
-    roots.push_back(-b / 3.0 + s + t);
-    roots.push_back(-b / 3.0 - (s + t) / 2.0 + CTN(0.0, 1.0) * sqrt3 * (s - t) / 2.0);
-    roots.push_back(boost::multiprecision::conj(roots[1]));
-    return roots;
+    using boost::multiprecision::pow;
+    using boost::multiprecision::conj; 
+
+    number<mpfr_float_backend<N> > one_third = number<mpfr_float_backend<N> >("1.0") / number<mpfr_float_backend<N> >("3.0"); 
+
+    // First depress the cubic 
+    std::pair<number<mpfr_float_backend<N> >, number<mpfr_float_backend<N> > > depressed = depress(b, c, d);
+    number<mpfr_float_backend<N> > p = depressed.first; 
+    number<mpfr_float_backend<N> > q = depressed.second;
+
+    // Evaluate the discriminant of the depressed cubic 
+    if (4 * pow(p, 3) + 27 * q * q < 0)
+    {
+        // In this case, apply Viete's formula 
+        auto roots = viete<N>(p, q);
+        std::vector<number<mpc_complex_backend<N> > > roots_complex; 
+        roots_complex.push_back(number<mpc_complex_backend<N> >(std::get<0>(roots) - one_third * b, 0));
+        roots_complex.push_back(number<mpc_complex_backend<N> >(std::get<1>(roots) - one_third * b, 0));
+        roots_complex.push_back(number<mpc_complex_backend<N> >(std::get<2>(roots) - one_third * b, 0));
+        return roots_complex; 
+    }
+    else
+    {
+        // Otherwise, apply Cardano's formula
+        auto roots = cardano<N>(p, q);
+        std::vector<number<mpc_complex_backend<N> > > roots_complex;
+        roots_complex.push_back(number<mpc_complex_backend<N> >(roots.first - one_third * b, 0));
+        roots_complex.push_back(roots.second - one_third * b);
+        roots_complex.push_back(conj(roots.second) - one_third * b);
+        return roots_complex; 
+    }
 }
 
 template <unsigned N>
@@ -449,16 +535,6 @@ class Polynomial
             bool quadratic = false;
             bool within_tol = false;
             int iter = 0;
-
-            /*
-            std::vector<CTN> inits;
-            CTN base("0.4", "0.9");
-            for (int i = 0; i < this->deg; ++i)
-            {
-                CTN init = boost::multiprecision::pow(base, i);
-                inits.push_back(init);
-            }
-            */
             std::vector<CTN> inits = bini<N, N>(this->coefs, rng, dist); 
            
             // Set up vector of coefficients for the derivative polynomial 
@@ -535,16 +611,6 @@ class Polynomial
             int iter = 0;
 
             // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
-            // TODO Fix this to work with Bini's initialization?
-            /*
-            std::vector<CTM> inits;
-            CTM base("0.4", "0.9");
-            for (int i = 0; i < this->deg; ++i)
-            {
-                CTM init = boost::multiprecision::pow(base, i);
-                inits.push_back(init);
-            }
-            */
             std::vector<CTM> inits = bini<N, M>(this->coefs, rng, dist);
            
             // Set up vector of coefficients to given precision (M)
