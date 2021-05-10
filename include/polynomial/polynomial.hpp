@@ -22,9 +22,10 @@
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     5/9/2021
+ *     5/10/2021
  */
-using boost::math::constants::pi; 
+using boost::math::constants::two_pi;
+using boost::math::constants::two_thirds_pi; 
 using boost::multiprecision::number;
 using boost::multiprecision::mpfr_float_backend;
 using boost::multiprecision::mpc_complex_backend;
@@ -182,7 +183,7 @@ std::tuple<number<mpfr_float_backend<N> >, number<mpfr_float_backend<N> >, numbe
     number<mpfr_float_backend<N> > sqrt_p_third = sqrt(-p * one_third);
     std::function<number<mpfr_float_backend<N> >(int)> func = [one_third, sqrt_p_third, p, q](int k)
     {
-        number<mpfr_float_backend<N> > c = 2 * one_third * boost::math::constants::pi<number<mpfr_float_backend<N> > >() * k;
+        number<mpfr_float_backend<N> > c = two_thirds_pi<number<mpfr_float_backend<N> > >() * k;
         number<mpfr_float_backend<N> > three_over_two = number<mpfr_float_backend<N> >("1.5");
         number<mpfr_float_backend<N> > root = 2 * sqrt_p_third * cos(one_third * acos(three_over_two * (q / p) / sqrt_p_third) - c); 
         return root; 
@@ -491,7 +492,6 @@ std::vector<number<mpc_complex_backend<M> > > bini(const std::vector<number<mpfr
 
     // Compute initial root approximations
     int n = coefs.size() - 1;
-    const CTM two_pi = floatToNumber<double, M>(std::complex<double>(2 * std::acos(-1.0), 0)); 
     std::vector<CTM> inits; 
     for (int i = 0; i < hull_x.size() - 1; ++i)
     {
@@ -499,8 +499,7 @@ std::vector<number<mpc_complex_backend<M> > > bini(const std::vector<number<mpfr
         int l = hull_x[i+1];
         for (int j = 0; j < l - k; ++j)
         {
-            double x = (two_pi / (l - k)) * j + (two_pi * i / n) + dist(rng); 
-            RTM theta = floatToNumber<double, M>(x);
+            RTM theta = (two_pi<RTM>() / (l - k)) * j + (two_pi<RTM>() * i / n) + floatToNumber<double, M>(dist(rng));  
             CTM z(boost::multiprecision::cos(theta), boost::multiprecision::sin(theta));
             inits.push_back(floatToNumber<double, M>(u[i]) * z);
         }
