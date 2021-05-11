@@ -24,8 +24,8 @@
  * Last updated:
  *     5/10/2021
  */
-using boost::math::constants::two_pi;
-using boost::math::constants::two_thirds_pi; 
+using boost::math::constants::pi;
+using boost::math::constants::root_three;
 using boost::multiprecision::number;
 using boost::multiprecision::mpfr_float_backend;
 using boost::multiprecision::mpc_complex_backend;
@@ -183,7 +183,7 @@ std::tuple<number<mpfr_float_backend<N> >, number<mpfr_float_backend<N> >, numbe
     number<mpfr_float_backend<N> > sqrt_p_third = sqrt(-p * one_third);
     std::function<number<mpfr_float_backend<N> >(int)> func = [one_third, sqrt_p_third, p, q](int k)
     {
-        number<mpfr_float_backend<N> > c = two_thirds_pi<number<mpfr_float_backend<N> > >() * k;
+        number<mpfr_float_backend<N> > c = 2 * one_third * pi<number<mpfr_float_backend<N> > >() * k;
         number<mpfr_float_backend<N> > three_over_two = number<mpfr_float_backend<N> >("1.5");
         number<mpfr_float_backend<N> > root = 2 * sqrt_p_third * cos(one_third * acos(three_over_two * (q / p) / sqrt_p_third) - c); 
         return root; 
@@ -192,7 +192,7 @@ std::tuple<number<mpfr_float_backend<N> >, number<mpfr_float_backend<N> >, numbe
 }
 
 template <unsigned N>
-std::pair<number<mpfr_float_backend<N> >, number<mpc_complex_backend<N> > >
+std::tuple<number<mpfr_float_backend<N> >, number<mpc_complex_backend<N> >, number<mpc_complex_backend<N> > >
     cardano(const number<mpfr_float_backend<N> > p, const number<mpfr_float_backend<N> > q)
 {
     /*
@@ -200,7 +200,8 @@ std::pair<number<mpfr_float_backend<N> >, number<mpc_complex_backend<N> > >
      */
     using boost::multiprecision::pow; 
     using boost::multiprecision::sqrt; 
-    using boost::multiprecision::cbrt; 
+    using boost::multiprecision::cbrt;
+    using boost::multiprecision::conj; 
 
     number<mpfr_float_backend<N> > c = sqrt(pow(q, 2) / 4 + pow(p, 3) / 27); 
     number<mpfr_float_backend<N> > x = cbrt((-q / 2) + c);
@@ -211,10 +212,9 @@ std::pair<number<mpfr_float_backend<N> >, number<mpc_complex_backend<N> > >
 
     // One of the imaginary roots is given by multiplying one of the cube roots by 
     // the primitive cube root of unity (the other is the conjugate)
-    number<mpfr_float_backend<N> > three("3.0"); 
-    number<mpc_complex_backend<N> > root1(-0.5 * x, 0.5 * sqrt(three));
+    number<mpc_complex_backend<N> > root1(-(x + y) / 2, (x - y) * root_three<number<mpfr_float_backend<N> > >() / 2); 
 
-    return std::make_pair(root0, root1); 
+    return std::make_tuple(root0, root1, conj(root1)); 
 }
 
 template <unsigned N>
@@ -227,7 +227,6 @@ std::vector<number<mpc_complex_backend<N> > > cubic(const number<mpfr_float_back
      * it and applying either Viete's formula or Cardano's formula. 
      */
     using boost::multiprecision::pow;
-    using boost::multiprecision::conj; 
 
     number<mpfr_float_backend<N> > one_third = number<mpfr_float_backend<N> >("1.0") / number<mpfr_float_backend<N> >("3.0"); 
 
@@ -252,9 +251,9 @@ std::vector<number<mpc_complex_backend<N> > > cubic(const number<mpfr_float_back
         // Otherwise, apply Cardano's formula
         auto roots = cardano<N>(p, q);
         std::vector<number<mpc_complex_backend<N> > > roots_complex;
-        roots_complex.push_back(number<mpc_complex_backend<N> >(roots.first - one_third * b, 0));
-        roots_complex.push_back(roots.second - one_third * b);
-        roots_complex.push_back(conj(roots.second) - one_third * b);
+        roots_complex.push_back(number<mpc_complex_backend<N> >(std::get<0>(roots) - one_third * b, 0));
+        roots_complex.push_back(std::get<1>(roots) - one_third * b);
+        roots_complex.push_back(std::get<2>(roots) - one_third * b);
         return roots_complex; 
     }
 }
@@ -433,12 +432,13 @@ std::pair<std::vector<number<mpc_complex_backend<N> > >, std::vector<double> >
     return std::make_pair(new_roots, delta);
 }
 
-bool ccw(std::pair<double, double> x, std::pair<double, double> y, std::pair<double, double> z)
+template <typename T>
+bool ccw(std::pair<T, T> x, std::pair<T, T> y, std::pair<T, T> z)
 {
     /*
      * Determine if x, y, and z make a counterclockwise turn in 2-D. 
      */
-    double cross = (y.first - x.first) * (z.second - x.second) - (y.second - x.second) * (z.first - x.first);
+    T cross = (y.first - x.first) * (z.second - x.second) - (y.second - x.second) * (z.first - x.first);
     return (cross > 0);
 }
 
@@ -453,21 +453,26 @@ std::vector<number<mpc_complex_backend<M> > > bini(const std::vector<number<mpfr
      */
     typedef number<mpfr_float_backend<M> >  RTM;
     typedef number<mpc_complex_backend<M> > CTM;
+    using boost::multiprecision::abs;
+    using boost::multiprecision::log2; 
+    using boost::multiprecision::pow; 
+    using boost::multiprecision::sin; 
+    using boost::multiprecision::cos; 
 
     // Find the upper convex hull of the vertices (i, log|f_i|) with 
     // the Andrew scan (use doubles for this computation)
-    std::vector<std::pair<double, double> > points;
+    std::vector<std::pair<RTM, RTM> > points;
     for (int i = 0; i < coefs.size(); ++i)
     {
-        if (boost::multiprecision::abs(coefs[i]) == 0)
-            points.push_back(std::make_pair(i, -std::numeric_limits<double>::infinity()));
+        if (abs(coefs[i]) == 0)
+            points.push_back(std::make_pair(RTM(i), -std::numeric_limits<RTM>::infinity()));
         else
-            points.push_back(std::make_pair(i, static_cast<double>(boost::multiprecision::log2(boost::multiprecision::abs(coefs[i])))));
+            points.push_back(std::make_pair(RTM(i), log2(abs(coefs[i]))));
     }
-    std::vector<std::pair<double, double> > upper_hull;
+    std::vector<std::pair<RTM, RTM> > upper_hull;
     for (int i = points.size() - 1; i >= 0; --i)
     {
-        while (upper_hull.size() >= 2 && !ccw(upper_hull[upper_hull.size()-2], upper_hull[upper_hull.size()-1], points[i]))
+        while (upper_hull.size() >= 2 && !ccw<RTM>(upper_hull[upper_hull.size()-2], upper_hull[upper_hull.size()-1], points[i]))
             upper_hull.pop_back();
         upper_hull.push_back(points[i]);
     }
@@ -476,18 +481,18 @@ std::vector<number<mpc_complex_backend<M> > > bini(const std::vector<number<mpfr
     std::vector<int> hull_x;
     for (auto&& p : upper_hull)
     {
-        if (!std::isinf(p.second))
+        if (!std::isinf(static_cast<double>(p.second)))
             hull_x.push_back(static_cast<int>(p.first));
     }
     std::sort(hull_x.begin(), hull_x.end());
 
     // Compute u_{k_i} for each vertex in the convex hull
-    std::vector<double> u;
+    std::vector<RTM> u;
     for (int i = 0; i < hull_x.size() - 1; ++i)
     {
         int k = hull_x[i];
         int l = hull_x[i+1];
-        u.push_back(std::pow(static_cast<double>(boost::multiprecision::abs(coefs[k] / coefs[l])), 1.0 / (l - k)));
+        u.push_back(pow(abs(coefs[k] / coefs[l]), 1.0 / (l - k)));
     }
 
     // Compute initial root approximations
@@ -499,9 +504,10 @@ std::vector<number<mpc_complex_backend<M> > > bini(const std::vector<number<mpfr
         int l = hull_x[i+1];
         for (int j = 0; j < l - k; ++j)
         {
-            RTM theta = (two_pi<RTM>() / (l - k)) * j + (two_pi<RTM>() * i / n) + floatToNumber<double, M>(dist(rng));  
-            CTM z(boost::multiprecision::cos(theta), boost::multiprecision::sin(theta));
-            inits.push_back(floatToNumber<double, M>(u[i]) * z);
+            RTM rand = floatToNumber<double, M>(dist(rng)); 
+            RTM theta = (2 * pi<RTM>() / (l - k)) * j + (2 * pi<RTM>() * i / n) + rand;  
+            CTM z(cos(theta), sin(theta));
+            inits.push_back(u[i] * z);
         }
     }
     return inits;
