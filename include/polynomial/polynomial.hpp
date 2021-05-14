@@ -22,7 +22,7 @@
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     5/10/2021
+ *     5/14/2021
  */
 using boost::math::constants::pi;
 using boost::math::constants::root_three;
@@ -352,7 +352,7 @@ number<mpfr_float_backend<M> > hornerWiden(const std::vector<number<mpfr_float_b
 }
 
 template <unsigned N, unsigned M>
-std::pair<std::vector<number<mpc_complex_backend<M> > >, std::vector<double> >
+std::pair<std::vector<number<mpc_complex_backend<M> > >, std::vector<number<mpfr_float_backend<M> > > >
     newton(const std::vector<number<mpfr_float_backend<N> > >& coefs,
            const std::vector<number<mpfr_float_backend<N> > >& dcoefs,
            const std::vector<number<mpc_complex_backend<N> > >& roots)
@@ -373,19 +373,19 @@ std::pair<std::vector<number<mpc_complex_backend<M> > >, std::vector<double> >
     }
 
     // Compute the absolute difference between each old and new root
-    std::vector<double> delta;
+    std::vector<CTM> delta;
     for (int j = 0; j < roots.size(); ++j)
     {
-        double dr = static_cast<double>(roots[j].real()) - static_cast<double>(new_roots[j].real());
-        double di = static_cast<double>(roots[j].imag()) - static_cast<double>(new_roots[j].imag());
-        delta.push_back(std::sqrt(std::pow(dr, 2.0) + std::pow(di, 2.0)));
+        CTM dr = convertPrecision<N, M>(roots[j].real() - new_roots[j].real());
+        CTM di = convertPrecision<N, M>(roots[j].imag() - new_roots[j].imag());
+        delta.push_back(boost::multiprecision::sqrt((dr * dr) + (di * di)));
     }
 
     return std::make_pair(new_roots, delta);
 }
 
 template <unsigned N>
-std::pair<std::vector<number<mpc_complex_backend<N> > >, std::vector<double> >
+std::pair<std::vector<number<mpc_complex_backend<N> > >, std::vector<number<mpfr_float_backend<N> > > >
     aberth(const std::vector<number<mpfr_float_backend<N> > >& coefs,
            const std::vector<number<mpfr_float_backend<N> > >& dcoefs,
            const std::vector<number<mpc_complex_backend<N> > >& roots)
@@ -421,12 +421,12 @@ std::pair<std::vector<number<mpc_complex_backend<N> > >, std::vector<double> >
     }
     
     // Compute the absolute difference between each old and new root
-    std::vector<double> delta;
+    std::vector<CTN> delta;
     for (int j = 0; j < roots.size(); ++j)
     {
-        double dr = static_cast<double>(roots[j].real()) - static_cast<double>(new_roots[j].real());
-        double di = static_cast<double>(roots[j].imag()) - static_cast<double>(new_roots[j].imag());
-        delta.push_back(std::sqrt(std::pow(dr, 2.0) + std::pow(di, 2.0)));
+        CTN dr = roots[j].real() - new_roots[j].real();
+        CTN di = roots[j].imag() - new_roots[j].imag();
+        delta.push_back(boost::multiprecision::sqrt((dr * dr) + (di * di)));
     }
     
     return std::make_pair(new_roots, delta);
@@ -523,8 +523,8 @@ class Polynomial
         std::vector<number<mpfr_float_backend<N> > > coefs;
 
         std::pair<std::vector<number<mpc_complex_backend<N> > >, bool> rootsAberth(int max_iter,
-                                                                                   double atol,
-                                                                                   double rtol,
+                                                                                   number<mpfr_float_backend<N> > atol,
+                                                                                   number<mpfr_float_backend<N> > rtol,
                                                                                    boost::random::mt19937& rng,
                                                                                    boost::random::uniform_real_distribution<double>& dist)
         {
@@ -553,11 +553,12 @@ class Polynomial
 
             // Run the algorithm until all roots exhibit quadratic convergence
             // or the desired number of iterations is reached
-            std::vector<double> delta, new_delta;
-            for (int i = 0; i < this->deg; ++i) delta.push_back(0.0);
+            std::vector<RTN> delta, new_delta;
+            for (int i = 0; i < this->deg; ++i)
+                delta.push_back(0.0);
             while (iter < max_iter && !converged)
             {
-                std::pair<std::vector<CTN>, std::vector<double> > result = aberth<N>(this->coefs, dcoefs, roots);
+                std::pair<std::vector<CTN>, std::vector<RTN> > result = aberth<N>(this->coefs, dcoefs, roots);
                 new_roots = result.first;
                 new_delta = result.second;
                 iter++;
@@ -587,20 +588,14 @@ class Polynomial
                 roots = new_roots;
                 delta = new_delta;
             }
-            // Sharpen each root for the given number of iterations 
-            //for (unsigned i = 0; i < sharpen_iter; ++i)
-            //{
-            //    auto result = newton<std::complex<double> >(coefs, dcoefs, roots);
-            //    roots = result.first;
-            //}
 
             return std::make_pair(roots, converged);
         }
 
         template <unsigned M>
         std::pair<std::vector<number<mpc_complex_backend<M> > >, bool> rootsAberth(int max_iter,
-                                                                                   double atol,
-                                                                                   double rtol,
+                                                                                   number<mpfr_float_backend<M> > atol,
+                                                                                   number<mpfr_float_backend<M> > rtol,
                                                                                    boost::random::mt19937& rng,
                                                                                    boost::random::uniform_real_distribution<double>& dist)
         {
@@ -633,11 +628,12 @@ class Polynomial
 
             // Run the algorithm until all roots exhibit quadratic convergence
             // or the desired number of iterations is reached
-            std::vector<double> delta, new_delta;
-            for (int i = 0; i < this->deg; ++i) delta.push_back(0.0);
+            std::vector<RTM> delta, new_delta;
+            for (int i = 0; i < this->deg; ++i)
+                delta.push_back(0.0);
             while (iter < max_iter && !converged)
             {
-                std::pair<std::vector<CTM>, std::vector<double> > result = aberth<M>(coefs, dcoefs, roots);
+                std::pair<std::vector<CTM>, std::vector<RTM> > result = aberth<M>(coefs, dcoefs, roots);
                 new_roots = result.first;
                 new_delta = result.second;
                 iter++;
@@ -667,12 +663,6 @@ class Polynomial
                 roots = new_roots;
                 delta = new_delta;
             }
-            // Sharpen each root for the given number of iterations 
-            //for (unsigned i = 0; i < sharpen_iter; ++i)
-            //{
-            //    auto result = newton<std::complex<double> >(coefs, dcoefs, roots);
-            //    roots = result.first;
-            //}
 
             return std::make_pair(roots, converged);
         }
@@ -712,7 +702,8 @@ class Polynomial
              */
             typedef number<mpfr_float_backend<N> > RTN;
 
-            for (auto&& coef : coefs) this->coefs.push_back(floatToNumber<double, N>(coef));
+            for (auto&& coef : coefs)
+                this->coefs.push_back(floatToNumber<double, N>(coef));
             this->coefs = removeTrailingZeros<RTN>(this->coefs);
             this->deg = this->coefs.size() - 1;
         }
@@ -1318,8 +1309,8 @@ class Polynomial
         }
 
         std::pair<std::vector<number<mpc_complex_backend<N> > >, bool> roots(int max_iter,
-                                                                             double atol,
-                                                                             double rtol,
+                                                                             number<mpfr_float_backend<N> > atol,
+                                                                             number<mpfr_float_backend<N> > rtol,
                                                                              boost::random::mt19937& rng,
                                                                              boost::random::uniform_real_distribution<double>& dist)
         {
@@ -1347,8 +1338,8 @@ class Polynomial
 
         template <unsigned M>
         std::pair<std::vector<number<mpc_complex_backend<M> > >, bool> roots(int max_iter,
-                                                                             double atol,
-                                                                             double rtol,
+                                                                             number<mpfr_float_backend<M> > atol,
+                                                                             number<mpfr_float_backend<M> > rtol,
                                                                              boost::random::mt19937& rng,
                                                                              boost::random::uniform_real_distribution<double>& dist)
         {
