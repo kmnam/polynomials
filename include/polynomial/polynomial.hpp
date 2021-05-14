@@ -212,9 +212,10 @@ std::tuple<number<mpfr_float_backend<N> >, number<mpc_complex_backend<N> >, numb
 
     // One of the imaginary roots is given by multiplying one of the cube roots by 
     // the primitive cube root of unity (the other is the conjugate)
-    number<mpc_complex_backend<N> > root1(-(x + y) / 2, (x - y) * root_three<number<mpfr_float_backend<N> > >() / 2); 
+    number<mpc_complex_backend<N> > root1(-(x + y) / 2, (x - y) * root_three<number<mpfr_float_backend<N> > >() / 2);
+    number<mpc_complex_backend<N> > root2 = conj(root1); 
 
-    return std::make_tuple(root0, root1, conj(root1)); 
+    return std::make_tuple(root0, root1, root2); 
 }
 
 template <unsigned N>
@@ -362,6 +363,7 @@ std::pair<std::vector<number<mpc_complex_backend<M> > >, std::vector<number<mpfr
      * coefficients corresponding to the polynomial, its derivative, and 
      * a vector of current root approximations. 
      */
+    typedef number<mpfr_float_backend<M> >  RTM; 
     typedef number<mpc_complex_backend<M> > CTM;
 
     // Perform the Newton correction for each root
@@ -373,11 +375,11 @@ std::pair<std::vector<number<mpc_complex_backend<M> > >, std::vector<number<mpfr
     }
 
     // Compute the absolute difference between each old and new root
-    std::vector<CTM> delta;
+    std::vector<RTM> delta;
     for (int j = 0; j < roots.size(); ++j)
     {
-        CTM dr = convertPrecision<N, M>(roots[j].real() - new_roots[j].real());
-        CTM di = convertPrecision<N, M>(roots[j].imag() - new_roots[j].imag());
+        RTM dr = convertPrecision<N, M>(roots[j].real() - new_roots[j].real());
+        RTM di = convertPrecision<N, M>(roots[j].imag() - new_roots[j].imag());
         delta.push_back(boost::multiprecision::sqrt((dr * dr) + (di * di)));
     }
 
@@ -397,6 +399,7 @@ std::pair<std::vector<number<mpc_complex_backend<N> > >, std::vector<number<mpfr
      *
      * Input and output precisions are assumed to be the same.  
      */
+    typedef number<mpfr_float_backend<N> >  RTN; 
     typedef number<mpc_complex_backend<N> > CTN;
 
     // Perform the Aberth-Ehrlich correction for each root
@@ -421,11 +424,11 @@ std::pair<std::vector<number<mpc_complex_backend<N> > >, std::vector<number<mpfr
     }
     
     // Compute the absolute difference between each old and new root
-    std::vector<CTN> delta;
+    std::vector<RTN> delta;
     for (int j = 0; j < roots.size(); ++j)
     {
-        CTN dr = roots[j].real() - new_roots[j].real();
-        CTN di = roots[j].imag() - new_roots[j].imag();
+        RTN dr = roots[j].real() - new_roots[j].real();
+        RTN di = roots[j].imag() - new_roots[j].imag();
         delta.push_back(boost::multiprecision::sqrt((dr * dr) + (di * di)));
     }
     
@@ -903,8 +906,10 @@ class Polynomial
             // Copy over the coefficients into new vectors with the output
             // precision (P) and resize as necessary 
             std::vector<RTP> p_coefs, q_coefs;
-            for (const RTN coef : this->coefs)      p_coefs.push_back(convertPrecision<N, P>(coef));
-            for (const RTM coef : q.coefficients()) q_coefs.push_back(convertPrecision<M, P>(coef));
+            for (const RTN coef : this->coefs)
+                p_coefs.push_back(convertPrecision<N, P>(coef));
+            for (const RTM coef : q.coefficients())
+                q_coefs.push_back(convertPrecision<M, P>(coef));
             if (this->deg > q.degree())
                 q_coefs = appendZeros<RTP>(q_coefs, this->deg - q.degree());
             else if (this->deg < q.degree())
