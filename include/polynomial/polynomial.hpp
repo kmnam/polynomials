@@ -1,6 +1,7 @@
 #ifndef UNIVAR_POLYNOMIAL_MULTIPREC_HPP
 #define UNIVAR_POLYNOMIAL_MULTIPREC_HPP
 
+#include <iostream> 
 #include <utility>
 #include <ostream>
 #include <string>
@@ -22,7 +23,7 @@
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     5/14/2021
+ *     9/1/2021
  */
 using boost::math::constants::pi;
 using boost::math::constants::root_three;
@@ -525,11 +526,12 @@ class Polynomial
         // Coefficients of the polynomial stored in ascending order of power
         std::vector<number<mpfr_float_backend<N> > > coefs;
 
-        std::pair<std::vector<number<mpc_complex_backend<N> > >, bool> rootsAberth(int max_iter,
-                                                                                   number<mpfr_float_backend<N> > atol,
-                                                                                   number<mpfr_float_backend<N> > rtol,
+        std::pair<std::vector<number<mpc_complex_backend<N> > >, bool> rootsAberth(const int max_iter,
+                                                                                   const number<mpfr_float_backend<N> > atol,
+                                                                                   const number<mpfr_float_backend<N> > rtol,
                                                                                    boost::random::mt19937& rng,
-                                                                                   boost::random::uniform_real_distribution<double>& dist)
+                                                                                   boost::random::uniform_real_distribution<double>& dist,
+                                                                                   const bool verbose = false)
         {
             /*
              * Run the Aberth-Ehrlich method on the given polynomial.
@@ -538,69 +540,74 @@ class Polynomial
              */
             typedef number<mpfr_float_backend<N> >  RTN;
             typedef number<mpc_complex_backend<N> > CTN;
-
+            
             bool converged = false;
-            bool quadratic = false;
-            bool within_tol = false;
             int iter = 0;
-            std::vector<CTN> inits = bini<N, N>(this->coefs, rng, dist); 
+
+            // Convert the polynomial into a monic polynomial 
+            std::vector<RTN> mcoefs;
+            for (int i = 0; i < this->deg; ++i)
+                mcoefs.push_back(this->coefs[i] / this->coefs[this->deg]);
+            mcoefs.push_back(1.0);  
+            
+            // Initialize the solutions with Bini's initialization 
+            std::vector<CTN> inits = bini<N, N>(mcoefs, rng, dist); 
            
             // Set up vector of coefficients for the derivative polynomial 
             std::vector<RTN> dcoefs; 
-            for (int i = 0; i < this->coefs.size() - 1; ++i)
-                dcoefs.push_back((i + 1) * this->coefs[i+1]);
+            for (int i = 0; i < mcoefs.size() - 1; ++i)
+                dcoefs.push_back((i + 1) * mcoefs[i+1]);
 
             // Set up vector of roots
             std::vector<CTN> roots(inits);
             std::vector<CTN> new_roots;
 
-            // Run the algorithm until all roots exhibit quadratic convergence
-            // or the desired number of iterations is reached
+            // Run the algorithm until all roots exhibit convergence w.r.t the 
+            // given tolerances or the desired number of iterations is reached
             std::vector<RTN> delta, new_delta;
             for (int i = 0; i < this->deg; ++i)
                 delta.push_back(0.0);
             while (iter < max_iter && !converged)
             {
-                std::pair<std::vector<CTN>, std::vector<RTN> > result = aberth<N>(this->coefs, dcoefs, roots);
+                std::pair<std::vector<CTN>, std::vector<RTN> > result = aberth<N>(mcoefs, dcoefs, roots);
                 new_roots = result.first;
                 new_delta = result.second;
                 iter++;
 
-                // Check that the change is less than the square of the 
-                // previous change for each root
-                for (int j = 0; j < this->deg; ++j)
-                {
-                    quadratic = true;
-                    if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
-                    {
-                        quadratic = false;
-                        break;
-                    }
-                }
                 // Check that the change is within the given tolerances
-                within_tol = true;
+                converged = true;
                 for (int j = 0; j < this->deg; ++j)
                 {
                     if (new_delta[j] > atol + rtol * boost::multiprecision::abs(roots[j]))
                     {
-                        within_tol = false;
+                        converged = false;
                         break;
                     }
                 }
-                if (quadratic && within_tol) converged = true;
                 roots = new_roots;
                 delta = new_delta;
+
+                // Print current iteration information if desired 
+                if (verbose)
+                {
+                    std::cout << "Iter " << iter << ": ";
+                    for (auto&& root : roots) std::cout << root << " ";
+                    std::cout << std::endl << "Delta: ";
+                    for (auto&& del : delta) std::cout << del << " ";
+                    std::cout << std::endl; 
+                }
             }
 
             return std::make_pair(roots, converged);
         }
 
         template <unsigned M>
-        std::pair<std::vector<number<mpc_complex_backend<M> > >, bool> rootsAberth(int max_iter,
-                                                                                   number<mpfr_float_backend<M> > atol,
-                                                                                   number<mpfr_float_backend<M> > rtol,
+        std::pair<std::vector<number<mpc_complex_backend<M> > >, bool> rootsAberth(const int max_iter,
+                                                                                   const number<mpfr_float_backend<M> > atol,
+                                                                                   const number<mpfr_float_backend<M> > rtol,
                                                                                    boost::random::mt19937& rng,
-                                                                                   boost::random::uniform_real_distribution<double>& dist)
+                                                                                   boost::random::uniform_real_distribution<double>& dist,
+                                                                                   const bool verbose = false)
         {
             /*
              * Run the Aberth-Ehrlich method on the given polynomial.
@@ -609,62 +616,60 @@ class Polynomial
             typedef number<mpc_complex_backend<M> > CTM;
 
             bool converged = false;
-            bool quadratic = false;
-            bool within_tol = false;
             int iter = 0;
 
-            // Initialize the roots to (0.4 + 0.9 i)^p, for p = 0, ..., d - 1
-            std::vector<CTM> inits = bini<N, M>(this->coefs, rng, dist);
-           
-            // Set up vector of coefficients to given precision (M)
-            std::vector<RTM> coefs, dcoefs;
-            for (int i = 0; i < this->coefs.size(); ++i)
-                coefs.push_back(convertPrecision<N, M>(this->coefs[i]));
+            // Convert the polynomial into a monic polynomial with given precision (M)
+            std::vector<RTM> mcoefs, dcoefs;
+            RTM leadingCoef = convertPrecision<N, M>(this->coefs[this->deg]);  
+            for (int i = 0; i < this->deg; ++i)
+                mcoefs.push_back(convertPrecision<N, M>(this->coefs[i]) / leadingCoef);
+            mcoefs.push_back(1.0);  
 
+            // Initialize the solutions with Bini's initialization 
+            std::vector<CTM> inits = bini<N, M>(mcoefs, rng, dist);
+           
             // Set up vector of coefficients for derivative polynomial
             for (int i = 0; i < coefs.size() - 1; ++i)
-                dcoefs.push_back((i + 1) * coefs[i+1]);
+                dcoefs.push_back((i + 1) * mcoefs[i+1]);
 
             // Set up vector of roots to given precision (M)
             std::vector<CTM> roots(inits);
             std::vector<CTM> new_roots;
 
-            // Run the algorithm until all roots exhibit quadratic convergence
-            // or the desired number of iterations is reached
+            // Run the algorithm until all roots exhibit convergence w.r.t the 
+            // given tolerances or the desired number of iterations is reached
             std::vector<RTM> delta, new_delta;
             for (int i = 0; i < this->deg; ++i)
                 delta.push_back(0.0);
             while (iter < max_iter && !converged)
             {
-                std::pair<std::vector<CTM>, std::vector<RTM> > result = aberth<M>(coefs, dcoefs, roots);
+                std::pair<std::vector<CTM>, std::vector<RTM> > result = aberth<M>(mcoefs, dcoefs, roots);
                 new_roots = result.first;
                 new_delta = result.second;
                 iter++;
 
-                // Check that the change is less than the square of the 
-                // previous change for each root
-                for (int j = 0; j < this->deg; ++j)
-                {
-                    quadratic = true;
-                    if (new_delta[j] > 0.01 * (delta[j] * delta[j]))
-                    {
-                        quadratic = false;
-                        break;
-                    }
-                }
                 // Check that the change is within the given tolerances
-                within_tol = true;
+                converged = true;
                 for (int j = 0; j < this->deg; ++j)
                 {
                     if (new_delta[j] > atol + rtol * boost::multiprecision::abs(roots[j]))
                     {
-                        within_tol = false;
+                        converged = false;
                         break;
                     }
                 }
-                if (quadratic && within_tol) converged = true;
                 roots = new_roots;
                 delta = new_delta;
+
+                // Print current iteration information if desired 
+                if (verbose)
+                {
+                    std::cout << "Iter " << iter << ": ";
+                    for (auto&& root : roots) std::cout << root << " ";
+                    std::cout << std::endl << "Delta: ";
+                    for (auto&& del : delta) std::cout << del << " ";
+                    std::cout << std::endl; 
+                }
             }
 
             return std::make_pair(roots, converged);
@@ -1342,11 +1347,12 @@ class Polynomial
         }
 
         template <unsigned M>
-        std::pair<std::vector<number<mpc_complex_backend<M> > >, bool> roots(int max_iter,
-                                                                             number<mpfr_float_backend<M> > atol,
-                                                                             number<mpfr_float_backend<M> > rtol,
+        std::pair<std::vector<number<mpc_complex_backend<M> > >, bool> roots(const int max_iter,
+                                                                             const number<mpfr_float_backend<M> > atol,
+                                                                             const number<mpfr_float_backend<M> > rtol,
                                                                              boost::random::mt19937& rng,
-                                                                             boost::random::uniform_real_distribution<double>& dist)
+                                                                             boost::random::uniform_real_distribution<double>& dist,
+                                                                             const bool verbose = false)
         {
             /*
              * Return all complex roots of the polynomial.  
@@ -1370,7 +1376,7 @@ class Polynomial
             }
             else
             {
-                return this->rootsAberth<M>(max_iter, atol, rtol, rng, dist);
+                return this->rootsAberth<M>(max_iter, atol, rtol, rng, dist, verbose);
             }
         }
 };
