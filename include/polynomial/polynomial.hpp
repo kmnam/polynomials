@@ -23,7 +23,7 @@
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     9/1/2021
+ *     9/21/2021
  */
 using boost::math::constants::pi;
 using boost::math::constants::root_three;
@@ -61,18 +61,44 @@ std::vector<T> removeTrailingZeros(const std::vector<T>& v)
 }
 
 template <typename T, unsigned N>
-number<mpfr_float_backend<N> > floatToNumber(const T x)
+number<mpfr_float_backend<N> > toReal(const T x)
 {
     /*
-     * Convert a floating-point number to a number of precision N via 
-     * a stringstream. 
+     * Convert a (single) floating-point real number to a real number of
+     * precision N via a std::stringstream. 
      */
     std::stringstream ss; 
 
-    // Write the string to precision set by std::numeric_limits<T>::max_digits10
-    ss << std::setprecision(std::numeric_limits<T>::max_digits10) << x;
+    // Write the string to precision set by std::numeric_limits<T>::digits10
+    // (number of decimal digits *guaranteed to be correct*)
+    unsigned prec = std::numeric_limits<T>::digits10;
+    ss << std::setprecision(prec) << x;
 
     return number<mpfr_float_backend<N> >(ss.str());
+}
+
+template <typename T, unsigned N>
+std::vector<number<mpfr_float_backend<N> > > toReal(const std::vector<T>& v)
+{
+    /*
+     * Convert a vector of floating-point real numbers to a vector of real
+     * numbers of precision N via a std::stringstream. 
+     */
+    std::stringstream ss; 
+
+    // Write each string to precision set by std::numeric_limits<T>::digits10
+    // (number of decimal digits *guaranteed to be correct*)
+    unsigned prec = std::numeric_limits<T>::digits10;
+    ss << std::setprecision(prec); 
+    std::vector<number<mpfr_float_backend<N> > > numbers; 
+    for (auto&& x : v)
+    {
+        ss << x; 
+        numbers.emplace_back(number<mpfr_float_backend<N> >(ss.str())); 
+        ss.str(std::string()); 
+    }
+
+    return numbers;
 }
 
 template <unsigned N, unsigned M>
@@ -84,7 +110,7 @@ number<mpfr_float_backend<M> > convertPrecision(const number<mpfr_float_backend<
      */
     std::stringstream ss;
 
-    // Write the string to precision N (which is fewer digits than that 
+    // Write the string to precision N (which is *fewer* digits than that 
     // set by std::numeric_limits<T>::max_digits10) 
     ss << std::setprecision(N) << x;
 
@@ -92,20 +118,54 @@ number<mpfr_float_backend<M> > convertPrecision(const number<mpfr_float_backend<
 }
 
 template <typename T, unsigned N>
-number<mpc_complex_backend<N> > floatToNumber(const std::complex<T> x)
+number<mpc_complex_backend<N> > toComplex(const T x)
 {
     /*
      * Convert a floating-point std::complex number to a number of precision N
-     * via a stringstream. 
+     * via a stringstream.
+     *
+     * T should be a complex type, with methods real() and imag().  
      */
     std::stringstream ss_real, ss_imag; 
 
     // Write the real and imaginary parts of x to precision set by
-    // std::numeric_limits<T>::max_digits10
-    ss_real << std::setprecision(std::numeric_limits<T>::max_digits10) << x.real();
-    ss_imag << std::setprecision(std::numeric_limits<T>::max_digits10) << x.imag();
+    // std::numeric_limits<T>::digits10 (number of decimal digits 
+    // *guaranteed to be correct*)
+    unsigned prec = std::numeric_limits<T>::digits10; 
+    ss_real << std::setprecision(prec) << x.real();
+    ss_imag << std::setprecision(prec) << x.imag();
 
-    return number<mpc_complex_backend<N> >(ss_real.str(), ss_imag.str());
+    return number<mpc_complex_backend<N> >(ss_real.str(), ss_imag.str()); 
+}
+
+template <typename T, unsigned N>
+std::vector<number<mpc_complex_backend<N> > > toComplex(const std::vector<T>& v)
+{
+    /*
+     * Convert a vector of floating-point std::complex number to a vector of
+     * number of precision N via a std::stringstream.
+     *
+     * T should be a complex type, with methods real() and imag(). 
+     */
+    std::stringstream ss_real, ss_imag; 
+
+    // Write the real and imaginary parts of x to precision set by
+    // std::numeric_limits<T>::digits10 (number of decimal digits 
+    // *guaranteed to be correct*)
+    unsigned prec = std::numeric_limits<T>::digits10; 
+    ss_real << std::setprecision(prec);
+    ss_imag << std::setprecision(prec); 
+    std::vector<number<mpc_complex_backend<N> > > numbers; 
+    for (auto&& x : v)
+    {
+        ss_real << x.real();
+        ss_imag << x.imag();  
+        numbers.emplace_back(number<mpc_complex_backend<N> >(ss_real.str(), ss_imag.str())); 
+        ss_real.str(std::string());
+        ss_imag.str(std::string());  
+    }
+
+    return numbers;
 }
 
 template <unsigned N, unsigned M>
@@ -117,7 +177,7 @@ number<mpc_complex_backend<M> > convertPrecision(const number<mpc_complex_backen
      */
     std::stringstream ss_real, ss_imag;
 
-    // Write the parts to precision N (which is fewer digits than that 
+    // Write the parts to precision N (which is *fewer* digits than that 
     // set by std::numeric_limits<T>::max_digits10) 
     ss_real << std::setprecision(N) << x.real();
     ss_imag << std::setprecision(N) << x.imag();
@@ -147,7 +207,9 @@ number<mpc_complex_backend<N> > cuberoot(number<mpc_complex_backend<N> > z)
     /*
      * Return the principal cube root of the complex number z.
      */
-    const number<mpfr_float_backend<N> > one_third = number<mpfr_float_backend<N> >("1.0") / number<mpfr_float_backend<N> >("3.0");
+    const number<mpfr_float_backend<N> > one_third =
+        number<mpfr_float_backend<N> >("1.0") / number<mpfr_float_backend<N> >("3.0");
+
     if (z.real() < 0)
         return -boost::multiprecision::pow(-z, one_third);
     else
@@ -446,8 +508,8 @@ bool ccw(std::pair<T, T> x, std::pair<T, T> y, std::pair<T, T> z)
     return (cross > 0);
 }
 
-template <unsigned N, unsigned M>
-std::vector<number<mpc_complex_backend<M> > > bini(const std::vector<number<mpfr_float_backend<N> > > coefs,
+template <unsigned N>
+std::vector<number<mpc_complex_backend<N> > > bini(const std::vector<number<mpfr_float_backend<N> > > coefs,
                                                    boost::random::mt19937& rng,
                                                    boost::random::uniform_real_distribution<double>& dist)
 {
@@ -455,8 +517,8 @@ std::vector<number<mpc_complex_backend<M> > > bini(const std::vector<number<mpfr
      * Use Bini's initialization to yield a set of initial complex roots 
      * for the given vector of polynomial coefficients. 
      */
-    typedef number<mpfr_float_backend<M> >  RTM;
-    typedef number<mpc_complex_backend<M> > CTM;
+    typedef number<mpfr_float_backend<N> >  RTN;
+    typedef number<mpc_complex_backend<N> > CTN;
     using boost::multiprecision::abs;
     using boost::multiprecision::log2; 
     using boost::multiprecision::pow; 
@@ -465,18 +527,18 @@ std::vector<number<mpc_complex_backend<M> > > bini(const std::vector<number<mpfr
 
     // Find the upper convex hull of the vertices (i, log|f_i|) with 
     // the Andrew scan (use doubles for this computation)
-    std::vector<std::pair<RTM, RTM> > points;
+    std::vector<std::pair<RTN, RTN> > points; 
     for (int i = 0; i < coefs.size(); ++i)
     {
         if (abs(coefs[i]) == 0)
-            points.push_back(std::make_pair(RTM(i), -std::numeric_limits<RTM>::infinity()));
+            points.push_back(std::make_pair(RTN(i), -std::numeric_limits<RTN>::infinity()));
         else
-            points.push_back(std::make_pair(RTM(i), log2(abs(coefs[i]))));
+            points.push_back(std::make_pair(RTN(i), log2(abs(coefs[i]))));
     }
-    std::vector<std::pair<RTM, RTM> > upper_hull;
+    std::vector<std::pair<RTN, RTN> > upper_hull;
     for (int i = points.size() - 1; i >= 0; --i)
     {
-        while (upper_hull.size() >= 2 && !ccw<RTM>(upper_hull[upper_hull.size()-2], upper_hull[upper_hull.size()-1], points[i]))
+        while (upper_hull.size() >= 2 && !ccw<RTN>(upper_hull[upper_hull.size()-2], upper_hull[upper_hull.size()-1], points[i]))
             upper_hull.pop_back();
         upper_hull.push_back(points[i]);
     }
@@ -491,7 +553,7 @@ std::vector<number<mpc_complex_backend<M> > > bini(const std::vector<number<mpfr
     std::sort(hull_x.begin(), hull_x.end());
 
     // Compute u_{k_i} for each vertex in the convex hull
-    std::vector<RTM> u;
+    std::vector<RTN> u;
     for (int i = 0; i < hull_x.size() - 1; ++i)
     {
         int k = hull_x[i];
@@ -501,16 +563,16 @@ std::vector<number<mpc_complex_backend<M> > > bini(const std::vector<number<mpfr
 
     // Compute initial root approximations
     int n = coefs.size() - 1;
-    std::vector<CTM> inits; 
+    std::vector<CTN> inits; 
     for (int i = 0; i < hull_x.size() - 1; ++i)
     {
         int k = hull_x[i];
         int l = hull_x[i+1];
         for (int j = 0; j < l - k; ++j)
         {
-            RTM rand = floatToNumber<double, M>(dist(rng)); 
-            RTM theta = (2 * pi<RTM>() / (l - k)) * j + (2 * pi<RTM>() * i / n) + rand;  
-            CTM z(cos(theta), sin(theta));
+            RTN rand = toReal<double, N>(dist(rng)); 
+            RTN theta = (2 * pi<RTN>() / (l - k)) * j + (2 * pi<RTN>() * i / n) + rand;  
+            CTN z(cos(theta), sin(theta));
             inits.push_back(u[i] * z);
         }
     }
@@ -551,7 +613,7 @@ class Polynomial
             mcoefs.push_back(1.0);  
             
             // Initialize the solutions with Bini's initialization 
-            std::vector<CTN> inits = bini<N, N>(mcoefs, rng, dist); 
+            std::vector<CTN> inits = bini<N>(mcoefs, rng, dist); 
            
             // Set up vector of coefficients for the derivative polynomial 
             std::vector<RTN> dcoefs; 
@@ -620,13 +682,13 @@ class Polynomial
 
             // Convert the polynomial into a monic polynomial with given precision (M)
             std::vector<RTM> mcoefs, dcoefs;
-            RTM leadingCoef = convertPrecision<N, M>(this->coefs[this->deg]);  
+            RTM leading_coef = convertPrecision<N, M>(this->coefs[this->deg]);  
             for (int i = 0; i < this->deg; ++i)
-                mcoefs.push_back(convertPrecision<N, M>(this->coefs[i]) / leadingCoef);
+                mcoefs.push_back(convertPrecision<N, M>(this->coefs[i]) / leading_coef);
             mcoefs.push_back(1.0);  
 
             // Initialize the solutions with Bini's initialization 
-            std::vector<CTM> inits = bini<N, M>(mcoefs, rng, dist);
+            std::vector<CTM> inits = bini<M>(mcoefs, rng, dist);
            
             // Set up vector of coefficients for derivative polynomial
             for (int i = 0; i < coefs.size() - 1; ++i)
@@ -685,43 +747,26 @@ class Polynomial
             this->coefs.push_back(0.0);
         }
 
-        Polynomial(const double coef)
-        {
-            /*
-             * Constructor with user-specified double constant.
-             */
-            this->deg = 0;
-            this->coefs.push_back(floatToNumber<double, N>(coef));
-        }
-
-        Polynomial(const number<mpfr_float_backend<N> > coef)
+        template <typename T>
+        Polynomial(const T coef)
         {
             /*
              * Constructor with user-specified constant.
              */
             this->deg = 0;
-            this->coefs.push_back(coef);
+            this->coefs.push_back(toReal<T, N>(coef));
         }
 
-        Polynomial(const std::vector<double> coefs)
+        template <typename T>
+        Polynomial(const std::vector<T>& coefs)
         {
             /*
-             * Constructor with user-specified vector of double coefficients.
+             * Constructor with user-specified vector of floating-point
+             * coefficients.
              */
             typedef number<mpfr_float_backend<N> > RTN;
-
-            for (auto&& coef : coefs)
-                this->coefs.push_back(floatToNumber<double, N>(coef));
-            this->coefs = removeTrailingZeros<RTN>(this->coefs);
-            this->deg = this->coefs.size() - 1;
-        }
-
-        Polynomial(const std::vector<number<mpfr_float_backend<N> > > coefs)
-        {
-            /*
-             * Constructor with user-specified vector of coefficients.
-             */
-            this->coefs = removeTrailingZeros<number<mpfr_float_backend<N> > >(coefs);
+            
+            this->coefs = removeTrailingZeros<RTN>(toReal<T, N>(coefs)); 
             this->deg = this->coefs.size() - 1;
         }
 
@@ -748,128 +793,60 @@ class Polynomial
             return this->coefs;
         }
 
-        number<mpfr_float_backend<N> > eval(const number<mpfr_float_backend<N> > x) const 
-        {
-            /*
-             * Return the value obtained by evaluating the polynomial at the 
-             * given (real) value x.
-             *
-             * Here, precision of the input value matches that of the polynomial.   
-             */
-            return horner<N>(this->coefs, x);
-        }
-
-        template <unsigned M, unsigned P>
-        number<mpfr_float_backend<P> > eval(const number<mpfr_float_backend<M> > x) const
+        template <typename T, unsigned M = N>
+        number<mpfr_float_backend<M> > evalReal(const T x) const
         {
             /*
              * Return the value obtained by evaluating the polynomial at the
-             * given (real) value x.
-             */
-            return hornerWiden<N, P>(this->coefs, convertPrecision<M, N>(x));
-        }
-
-        template <unsigned M = N>
-        number<mpfr_float_backend<M> > eval(const double x) const
-        {
-            /*
-             * Return the value obtained by evaluating the polynomial at the
-             * given (real double) value x. 
+             * given (real) value x. 
              */
             if (M == N)
-                return horner<N>(this->coefs, floatToNumber<double, N>(x));
+                return horner<N>(this->coefs, toReal<T, N>(x));
             else
-                return hornerWiden<N, M>(this->coefs, floatToNumber<double, N>(x));
+                return hornerWiden<N, M>(this->coefs, toReal<T, N>(x));
         }
 
-        number<mpc_complex_backend<N> > eval(const number<mpc_complex_backend<N> > x) const
+        template <typename T, unsigned M = N>
+        std::vector<number<mpfr_float_backend<M> > > evalReal(const std::vector<T>& v) const
         {
             /*
-             * Return the value obtained by evaluating the polynomial at the 
-             * given (complex) value x. 
-             *
-             * Here, precision of the input value matches that of the polynomial.   
+             * Return the vector of values obtained by evaluating the polynomial
+             * at each (real) value in the given vector v.
              */
-            return horner<N>(this->coefs, x); 
+            std::vector<number<mpfr_float_backend<M> > > values;
+            for (auto&& x : v)
+                values.push_back(this->evalReal<T, M>(x));
+            
+            return values;
         }
 
-        template <unsigned M, unsigned P>
-        number<mpc_complex_backend<P> > eval(const number<mpc_complex_backend<M> > x) const
+        template <typename T, unsigned M = N>
+        number<mpc_complex_backend<M> > evalComplex(const T x) const
         {
             /*
              * Return the value obtained by evaluating the polynomial at the
              * given (complex) value x.
-             */
-            return hornerWiden<N, P>(this->coefs, convertPrecision<M, N>(x));
-        }
-
-        template <unsigned M = N>
-        number<mpc_complex_backend<M> > eval(const std::complex<double> x) const 
-        {
-            /*
-             * Return the value obtained by evaluating the polynomial at the 
-             * given (std::complex<double>) value x. 
+             *
+             * T should be a complex type, with methods real() and imag().  
              */
             if (M == N)
-                return horner<N>(this->coefs, floatToNumber<double, N>(x));
+                return horner<N>(this->coefs, toComplex<T, N>(x));
             else
-                return hornerWiden<N, M>(this->coefs, floatToNumber<double, N>(x));
+                return hornerWiden<N, M>(this->coefs, toComplex<T, N>(x));
         }
 
-        std::vector<number<mpfr_float_backend<N> > > eval(const std::vector<number<mpfr_float_backend<N> > >& x) const 
-        {
-            /*
-             * Return the vector of values obtained by evaluating the polynomial 
-             * at each (real) value in the given vector x.
-             *
-             * Here, precision of the input values matches that of the polynomial.   
-             */
-            std::vector<number<mpfr_float_backend<N> > > values;
-            for (auto&& y : x)
-                values.push_back(this->eval(y));
-            
-            return values;
-        }
-
-        template <unsigned M, unsigned P>
-        std::vector<number<mpfr_float_backend<P> > > eval(const std::vector<number<mpfr_float_backend<M> > >& x) const
-        {
-            /*
-             * Return the vector of values obtained by evaluating the polynomial
-             * at each (real) value in the given vector x.
-             */
-            std::vector<number<mpfr_float_backend<P> > > values;
-            for (auto&& y : x)
-                values.push_back(this->eval<M, P>(y));
-            
-            return values;
-        }
-
-        std::vector<number<mpc_complex_backend<N> > > eval(const std::vector<number<mpc_complex_backend<N> > >& x) const 
-        {
-            /*
-             * Return the vector of values obtained by evaluating the polynomial 
-             * at each (complex) value in the given vector x.
-             *
-             * Here, precision of the input values matches that of the polynomial.   
-             */
-            std::vector<number<mpc_complex_backend<N> > > values;
-            for (auto&& y : x)
-                values.push_back(this->eval(y));
-            
-            return values;
-        }
-
-        template <unsigned M, unsigned P>
-        std::vector<number<mpc_complex_backend<P> > > eval(const std::vector<number<mpc_complex_backend<M> > >& x) const
+        template <typename T, unsigned M = N>
+        std::vector<number<mpc_complex_backend<M> > > evalComplex(const std::vector<T>& v) const 
         {
             /*
              * Return the vector of values obtained by evaluating the polynomial
              * at each (complex) value in the given vector x.
+             *
+             * T should be a complex type, with methods real() and imag(). 
              */
-            std::vector<number<mpc_complex_backend<P> > > values;
-            for (auto&& y : x)
-                values.push_back(this->eval<M, P>(y));
+            std::vector<number<mpc_complex_backend<M> > > values;
+            for (auto&& x : v)
+                values.push_back(this->evalComplex<T, M>(x));
             
             return values;
         }
