@@ -18,7 +18,7 @@
  * Authors:
  *     Kee-Myoung Nam, Department of Systems Biology, Harvard Medical School
  * Last updated:
- *     5/8/2021
+ *     9/21/2021
  */
 using boost::multiprecision::number; 
 using boost::multiprecision::mpfr_float_backend; 
@@ -34,8 +34,7 @@ std::tuple<bool, std::string, int> getNumberAsString(number<mpfr_float_backend<N
 
     // Feed number into stringstream with maximum precision
     ss << std::setprecision(std::numeric_limits<number<mpfr_float_backend<N> > >::max_digits10)
-       << std::scientific;
-    ss << num;
+       << std::scientific << num; 
 
     // Get output string and parse sign, mantissa, and exponent 
     std::string s = ss.str();
@@ -172,7 +171,7 @@ BOOST_AUTO_TEST_CASE(testInit)
 BOOST_AUTO_TEST_CASE(testEval)
 {
     /*
-     * Test all scalar eval() methods.
+     * Test all scalar evalReal() and evalComplex() methods.
      */
     typedef number<mpfr_float_backend<20> > mpfr_20;
     typedef number<mpc_complex_backend<20> > mpc_20;
@@ -186,9 +185,9 @@ BOOST_AUTO_TEST_CASE(testEval)
     std::vector<mpfr_20> coefs = {1.0, 2.0, 3.0};
     Polynomial<20> f(coefs);
     mpc_20 z(5.0, 0.0);
-    mpc_20 z0 = f.eval(z);
+    mpc_20 z0 = f.evalComplex<mpc_20, 20>(z);
     std::tuple<bool, std::string, int> zc0 = getNumberAsString<20>(z0.real());
-    mpc_20 z1 = f.eval<20, 20>(z);
+    mpc_20 z1 = f.evalComplex<mpc_20, 20>(z);
     std::tuple<bool, std::string, int> zc1 = getNumberAsString<20>(z1.real());
     BOOST_TEST(z0 == 86.0);
     BOOST_TEST(std::get<0>(zc0));
@@ -203,9 +202,9 @@ BOOST_AUTO_TEST_CASE(testEval)
 
     // Evaluate with constant precision (20) and std::complex<double> input
     std::complex<double> zd(5.0, 0.0);
-    mpc_20 zd0 = f.eval(zd);
+    mpc_20 zd0 = f.evalComplex<std::complex<double>, 20>(zd);
     std::tuple<bool, std::string, int> zdc0 = getNumberAsString<20>(zd0.real());
-    mpc_20 zd1 = f.eval<20>(zd);
+    mpc_20 zd1 = f.evalComplex<std::complex<double>, 20>(zd);
     std::tuple<bool, std::string, int> zdc1 = getNumberAsString<20>(zd1.real());
     BOOST_TEST(zd0 == 86.0);
     BOOST_TEST(std::get<0>(zdc0));
@@ -220,9 +219,9 @@ BOOST_AUTO_TEST_CASE(testEval)
 
     // Evaluate with constant precision (20) and real input and real output 
     mpfr_20 x = 5.0;
-    mpfr_20 x0 = f.eval(x);
+    mpfr_20 x0 = f.evalReal<mpfr_20, 20>(x);
     std::tuple<bool, std::string, int> xc0 = getNumberAsString<20>(x0);
-    mpfr_20 x1 = f.eval<20, 20>(x);
+    mpfr_20 x1 = f.evalReal<mpfr_20, 20>(x);
     std::tuple<bool, std::string, int> xc1 = getNumberAsString<20>(x1);
     BOOST_TEST(x0 == 86.0);
     BOOST_TEST(std::get<0>(xc0)); 
@@ -237,9 +236,9 @@ BOOST_AUTO_TEST_CASE(testEval)
 
     // Evaluate with constant precision (20) and double input
     double xd = 5.0;
-    mpfr_20 xd0 = f.eval(xd);
+    mpfr_20 xd0 = f.evalReal<double, 20>(xd);
     std::tuple<bool, std::string, int> xdc0 = getNumberAsString<20>(xd0.real());
-    mpfr_20 xd1 = f.eval<20>(xd);
+    mpfr_20 xd1 = f.evalReal<double, 20>(xd);
     std::tuple<bool, std::string, int> xdc1 = getNumberAsString<20>(xd1.real());
     BOOST_TEST(xd0 == 86.0);
     BOOST_TEST(std::get<0>(xdc0)); 
@@ -254,10 +253,10 @@ BOOST_AUTO_TEST_CASE(testEval)
 
     // Evaluate with input precision = 30 and output precision = 20
     mpc_30 a(5.0, 0.0);
-    mpc_20 a0 = f.eval<30, 20>(a);
+    mpc_20 a0 = f.evalComplex<mpc_30, 20>(a);
     std::tuple<bool, std::string, int> ac0 = getNumberAsString<20>(a0.real());
     mpfr_30 y = 5.0;
-    mpfr_20 y0 = f.eval<30, 20>(y);
+    mpfr_20 y0 = f.evalReal<mpfr_30, 20>(y);
     std::tuple<bool, std::string, int> yc0 = getNumberAsString<20>(y0);
     BOOST_TEST(a0 == 86.0);
     BOOST_TEST(std::get<0>(ac0));
@@ -271,9 +270,9 @@ BOOST_AUTO_TEST_CASE(testEval)
     BOOST_TEST(std::get<2>(yc0) == 1);
 
     // Evaluate with input precision = 30 and output precision = 40
-    mpc_40 a2 = f.eval<30, 40>(a);
+    mpc_40 a2 = f.evalComplex<mpc_30, 40>(a);
     std::tuple<bool, std::string, int> ac2 = getNumberAsString<40>(a2.real());
-    mpfr_40 y2 = f.eval<30, 40>(y);
+    mpfr_40 y2 = f.evalReal<mpfr_30, 40>(y);
     std::tuple<bool, std::string, int> yc2 = getNumberAsString<40>(y2);
     BOOST_TEST(a2 == 86.0);
     BOOST_TEST(std::get<0>(ac2)); 
@@ -308,17 +307,29 @@ BOOST_AUTO_TEST_CASE(testOperators)
         if (i == 0)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("4.1500000000000000000", 0) == 0 || std::get<1>(coef).rfind("4.1499999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("4.1500000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("4.1500000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("4.1499999999999999999", 0) == 0
+            ));
         }
         else if (i == 1)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("7.4600000000000000000", 0) == 0 || std::get<1>(coef).rfind("7.4599999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("7.4600000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("7.4600000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("7.4599999999999999999", 0) == 0
+            ));
         }
         else if (i == 2)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.9600000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.9599999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.9600000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.9600000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.9599999999999999999", 0) == 0
+            ));
         }
         BOOST_TEST(std::get<2>(coef) == 1); 
     }
@@ -334,22 +345,38 @@ BOOST_AUTO_TEST_CASE(testOperators)
         if (i == 0)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("5.59000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.589999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.59000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.59000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.58999999999999999999999999999", 0) == 0
+            ));
         }
         else if (i == 1)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("5.85000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.849999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.85000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.85000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.84999999999999999999999999999", 0) == 0
+            ));
         }
         else if (i == 2)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("9.65000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("9.649999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("9.65000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("9.65000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("9.64999999999999999999999999999", 0) == 0
+            ));
         }
         else if (i == 3)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("8.34000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("8.339999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("8.34000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("8.34000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("8.33999999999999999999999999999", 0) == 0
+            ));
         }
         BOOST_TEST(std::get<2>(coef) == 1);
     }
@@ -367,37 +394,61 @@ BOOST_AUTO_TEST_CASE(testOperators)
         if (i == 0)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.290000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.289999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.290000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.290000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.289999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1); 
         }
         else if (i == 1)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.210000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.209999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.210000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.210000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.209999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 2)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.690000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.689999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.690000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.690000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.689999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == -1); 
         }
         else if (i == 3)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("5.720000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.719999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.720000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.720000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.719999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 4)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("3.000000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("2.999999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("3.000000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("3.000000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("2.999999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1); 
         }
         else if (i == 5)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("5.640000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.639999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.640000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.640000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.639999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1); 
         }
     }
@@ -414,31 +465,51 @@ BOOST_AUTO_TEST_CASE(testOperators)
         if (i == 0)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("5.250000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.249999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.250000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.250000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.249999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0); 
         }
         else if (i == 1)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("5.880000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.879999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.880000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.880000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.879999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0); 
         }
         else if (i == 2)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("8.660000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("8.659999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("8.660000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("8.660000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("8.659999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0); 
         }
         else if (i == 3)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("7.470000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("7.469999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("7.470000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("7.470000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("7.469999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 4)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("2.250000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("2.249999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("2.250000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("2.250000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("2.249999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
     }
@@ -454,22 +525,38 @@ BOOST_AUTO_TEST_CASE(testOperators)
         if (i == 0)
         {
             BOOST_TEST(std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("9.740000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("9.739999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("9.740000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("9.740000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("9.739999999999999999999999999999999999999", 0) == 0
+            ));
         }
         else if (i == 1)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("1.610000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.609999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.610000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.610000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.609999999999999999999999999999999999999", 0) == 0
+            ));
         }
         else if (i == 2)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("7.690000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("7.689999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("7.690000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("7.690000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("7.689999999999999999999999999999999999999", 0) == 0
+            ));
         }
         else if (i == 3)
         {
             BOOST_TEST(std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("8.3400000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("8.339999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("8.340000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("8.340000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("8.339999999999999999999999999999999999999", 0) == 0
+            ));
         }
         BOOST_TEST(std::get<2>(coef) == 1);
     }
@@ -485,37 +572,61 @@ BOOST_AUTO_TEST_CASE(testOperators)
         if (i == 0)
         {     
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.815000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.814999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.815000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.815000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.814999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 1)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.798000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.797999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.798000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.798000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.797999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 2)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("8.491000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("8.490999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("8.491000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("8.491000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("8.490999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 3)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("6.898000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("6.897999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("6.898000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("6.898000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("6.897999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 4)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("7.500000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("7.499999999999999999999999999999999999999", 0) == 0)); 
+            BOOST_TEST((
+                std::get<1>(coef).rfind("7.500000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("7.500000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("7.499999999999999999999999999999999999999", 0) == 0
+            )); 
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 5)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("5.640000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.639999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.640000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.640000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.639999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
     } 
@@ -531,25 +642,41 @@ BOOST_AUTO_TEST_CASE(testOperators)
         if (i == 0)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.440000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.439999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.440000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.440000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.439999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 1)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.331000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.330999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.331000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.331000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.330999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 2);
         }
         else if (i == 2)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.161000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.160999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.161000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.161000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.160999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 2);
         }
         else if (i == 3)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("8.340000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("8.339999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("8.340000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("8.340000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("8.339999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
     }
@@ -565,37 +692,61 @@ BOOST_AUTO_TEST_CASE(testOperators)
         if (i == 0)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("7.650000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("7.649999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("7.650000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("7.650000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("7.649999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 1)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("6.220000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("6.219999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("6.220000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("6.220000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("6.219999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 2)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("8.829000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("8.828999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("8.829000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("8.829000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("8.828999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 3)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("8.042000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("8.041999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("8.042000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("8.042000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("8.041999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 4)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("5.250000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.249999999999999999999999999999999999999", 0) == 0)); 
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.250000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.250000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.249999999999999999999999999999999999999", 0) == 0
+            )); 
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 5)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("5.640000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.639999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.640000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.640000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.639999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
     } 
@@ -612,37 +763,61 @@ BOOST_AUTO_TEST_CASE(testOperators)
         if (i == 0)
         {     
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("2.319850000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("2.319849999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("2.319850000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("2.319850000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("2.319849999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 3);
         }
         else if (i == 1)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.742390000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.742389999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.742390000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.742390000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.742389999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 3);
         }
         else if (i == 2)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("7.273210000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("7.273209999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("7.273210000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("7.273210000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("7.273209999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 3);
         }
         else if (i == 3)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.180660000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.180659999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.180660000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.180660000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.180659999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 4);
         }
         else if (i == 4)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("8.113040000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("8.113039999999999999999999999999999999999", 0) == 0)); 
+            BOOST_TEST((
+                std::get<1>(coef).rfind("8.113040000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("8.113040000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("8.113039999999999999999999999999999999999", 0) == 0
+            )); 
             BOOST_TEST(std::get<2>(coef) == 3);
         }
         else if (i == 5)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.634640000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.634639999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.634640000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.634640000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.634639999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 3);
         }
     }
@@ -660,61 +835,101 @@ BOOST_AUTO_TEST_CASE(testOperators)
         if (i == 0)
         {     
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("6.772500000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("6.772499999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("6.772500000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("6.772500000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("6.772499999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 1)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.393770000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.393769999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.393770000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.393770000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.393769999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 2);
         }
         else if (i == 2)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("3.967875000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("3.967874999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("3.967875000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("3.967875000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("3.967874999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 3)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("8.298077200000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("8.298077199999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("8.298077200000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("8.298077200000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("8.298077199999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 2);
         }
         else if (i == 4)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("7.360228600000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("7.360228599999999999999999999999999999999", 0) == 0)); 
+            BOOST_TEST((
+                std::get<1>(coef).rfind("7.360228600000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("7.360228600000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("7.360228599999999999999999999999999999999", 0) == 0
+            )); 
             BOOST_TEST(std::get<2>(coef) == 2);
         }
         else if (i == 5)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("2.624095000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("2.624094999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("2.624095000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("2.624095000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("2.624094999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 2);
         }
         else if (i == 6)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("3.592545000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("3.592544999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("3.592545000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("3.592545000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("3.592544999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 2);
         }
         else if (i == 7)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.881276000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.881275999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.881276000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.881276000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.881275999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 3);
         }
         else if (i == 8)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("3.538080000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("3.538079999999999999999999999999999999999", 0) == 0)); 
+            BOOST_TEST((
+                std::get<1>(coef).rfind("3.538080000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("3.538080000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("3.538079999999999999999999999999999999999", 0) == 0
+            )); 
             BOOST_TEST(std::get<2>(coef) == 3);
         }
         else if (i == 9)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.269000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.268999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.269000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.269000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.268999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 3);
         }
     }
@@ -760,17 +975,29 @@ BOOST_AUTO_TEST_CASE(testScalarOperators)
         if (i == 0)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("3.110000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("3.109999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("3.110000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("3.110000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("3.109999999999999999999999999999999999999", 0) == 0
+            ));
         }
         else if (i == 1)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("7.460000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("7.459999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("7.460000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("7.460000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("7.459999999999999999999999999999999999999", 0) == 0
+            ));
         }
         else if (i == 2)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.960000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.959999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.960000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.960000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.959999999999999999999999999999999999999", 0) == 0
+            ));
         }
         BOOST_TEST(std::get<2>(coef) == 1);
     }
@@ -786,37 +1013,61 @@ BOOST_AUTO_TEST_CASE(testScalarOperators)
         if (i == 0)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("9.170000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("9.169999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("9.170000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("9.170000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("9.169999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 1)
         {
             BOOST_TEST(std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("1.210000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.209999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.210000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.210000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.209999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 2)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.690000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.689999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.690000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.690000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.689999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == -1);
         }
         else if (i == 3)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("5.720000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.719999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.720000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.720000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.719999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 4)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("3.000000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("2.999999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("3.000000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("3.000000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("2.999999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 5)
         {
             BOOST_TEST(std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("5.640000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.639999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.640000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.640000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.639999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
     }
@@ -832,37 +1083,61 @@ BOOST_AUTO_TEST_CASE(testScalarOperators)
         if (i == 0)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("9.170000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("9.169999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("9.170000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("9.170000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("9.169999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 1)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.210000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.209999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.210000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.210000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.209999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 2)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.690000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.689999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.690000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.690000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.689999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == -1);
         }
         else if (i == 3)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("5.720000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("-5.719999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.720000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.720000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.719999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 4)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("3.000000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("2.999999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("3.000000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("3.000000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("2.999999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 5)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("5.640000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.639999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.640000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.640000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.639999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
     }
@@ -878,19 +1153,31 @@ BOOST_AUTO_TEST_CASE(testScalarOperators)
         if (i == 0)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.141000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.140999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.141000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.141000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.140999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 2);
         }
         else if (i == 1)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("7.460000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("7.459999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("7.460000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("7.460000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("7.459999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 2)
         {
             BOOST_TEST(std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("1.960000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.959999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.960000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.960000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.959999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
     }
@@ -906,37 +1193,61 @@ BOOST_AUTO_TEST_CASE(testScalarOperators)
         if (i == 0)
         {
             BOOST_TEST(std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("1.663000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.662999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.663000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.663000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.662999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 1)
         {
             BOOST_TEST(std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("1.210000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.209999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.210000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.210000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.209999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 2)
         {
             BOOST_TEST(std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("1.690000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.689999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.690000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.690000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.689999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == -1);
         }
         else if (i == 3)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("5.720000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.719999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.720000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.720000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.719999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 4)
         {
             BOOST_TEST(std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("3.000000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("2.999999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("3.000000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("3.000000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("2.999999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 5)
         {
             BOOST_TEST(std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("5.640000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.639999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.640000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.640000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.639999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
     }
@@ -953,37 +1264,61 @@ BOOST_AUTO_TEST_CASE(testScalarOperators)
         if (i == 0)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.663000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.662999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.663000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.663000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.662999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 1)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("1.210000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.209999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.210000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.210000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.209999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 2)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("1.690000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.689999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.690000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.690000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.689999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == -1);
         }
         else if (i == 3)
         {
             BOOST_TEST(std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("5.720000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.719999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.720000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.720000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.719999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 4)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("3.000000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("2.999999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("3.000000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("3.000000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("2.999999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 5)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("5.640000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.639999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.640000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.640000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.639999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
     }
@@ -1000,17 +1335,29 @@ BOOST_AUTO_TEST_CASE(testScalarOperators)
         if (i == 0)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("3.012900000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("3.012899999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("3.012900000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("3.012900000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("3.012899999999999999999999999999999999999", 0) == 0
+            ));
         }
         else if (i == 1)
         {
             BOOST_TEST(std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("5.415960000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("5.415959999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.415960000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("5.415960000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("5.415959999999999999999999999999999999999", 0) == 0
+            ));
         }
         else if (i == 2)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.422960000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.422959999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.422960000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.422960000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.422959999999999999999999999999999999999", 0) == 0
+            ));
         }
         BOOST_TEST(std::get<2>(coef) == 3);
     }
@@ -1027,37 +1374,61 @@ BOOST_AUTO_TEST_CASE(testScalarOperators)
         if (i == 0)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("4.811700000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("4.811699999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("4.811700000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("4.811700000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("4.811699999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 1)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("4.513300000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("4.513299999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("4.513300000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("4.513300000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("4.513299999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 2)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("6.303700000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("6.303699999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("6.303700000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("6.303700000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("6.303699999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == -1);
         }
         else if (i == 3)
         {
             BOOST_TEST(std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("2.133560000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("2.133559999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("2.133560000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("2.133560000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("2.133559999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 4)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("1.119000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.118999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.119000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.119000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.118999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 2);
         }
         else if (i == 5)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("2.103720000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("2.103719999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("2.103720000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("2.103720000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("2.103719999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 2);
         }
     }
@@ -1074,37 +1445,61 @@ BOOST_AUTO_TEST_CASE(testScalarOperators)
         if (i == 0)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("4.811700000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("4.811699999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("4.811700000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("4.811700000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("4.811699999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 1)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("4.513300000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("4.513299999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("4.513300000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("4.513300000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("4.513299999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 2)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("6.303700000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("6.303699999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("6.303700000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("6.303700000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("6.303699999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == -1);
         }
         else if (i == 3)
         {
             BOOST_TEST(std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("2.133560000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("2.133559999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("2.133560000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("2.133560000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("2.133559999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
         else if (i == 4)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("1.119000000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("1.118999999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.119000000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("1.119000000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("1.118999999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 2);
         }
         else if (i == 5)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("2.103720000000000000000000000000000000000", 0) == 0 || std::get<1>(coef).rfind("2.103719999999999999999999999999999999999", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("2.103720000000000000000000000000000000001", 0) == 0 ||
+                std::get<1>(coef).rfind("2.103720000000000000000000000000000000000", 0) == 0 ||
+                std::get<1>(coef).rfind("2.103719999999999999999999999999999999999", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 2);
         }
     }
@@ -1123,19 +1518,31 @@ BOOST_AUTO_TEST_CASE(testScalarOperators)
         if (i == 0)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("5.716253443526170798898071625344352617080", 0) == 0 || std::get<1>(coef).rfind("5.716253443526170798898071625344352617079", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("5.716253443526170798898071625344352617081", 0) == 0 ||
+                std::get<1>(coef).rfind("5.716253443526170798898071625344352617080", 0) == 0 ||
+                std::get<1>(coef).rfind("5.716253443526170798898071625344352617079", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == -1);
         }
         else if (i == 1)
         {
             BOOST_TEST(std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("1.027548209366391184573002754820936639118", 0) == 0 || std::get<1>(coef).rfind("1.027548209366391184573002754820936639117", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.027548209366391184573002754820936639119", 0) == 0 ||
+                std::get<1>(coef).rfind("1.027548209366391184573002754820936639118", 0) == 0 ||
+                std::get<1>(coef).rfind("1.027548209366391184573002754820936639117", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 2)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("2.699724517906336088154269972451790633609", 0) == 0 || std::get<1>(coef).rfind("2.699724517906336088154269972451790633608", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("2.699724517906336088154269972451790633610", 0) == 0 ||
+                std::get<1>(coef).rfind("2.699724517906336088154269972451790633609", 0) == 0 ||
+                std::get<1>(coef).rfind("2.699724517906336088154269972451790633608", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == -1);
         }
     }
@@ -1157,37 +1564,61 @@ BOOST_AUTO_TEST_CASE(testScalarOperators)
         if (i == 0)
         {
             BOOST_TEST(!std::get<0>(coef));
-            BOOST_TEST((std::get<1>(coef).rfind("3.458445040214477211796246648793565683646", 0) == 0 || std::get<1>(coef).rfind("3.458445040214477211796246648793565683645", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("3.458445040214477211796246648793565683647", 0) == 0 ||
+                std::get<1>(coef).rfind("3.458445040214477211796246648793565683646", 0) == 0 ||
+                std::get<1>(coef).rfind("3.458445040214477211796246648793565683645", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 1)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("3.243967828418230563002680965147453083110", 0) == 0 || std::get<1>(coef).rfind("3.243967828418230563002680965147453083109", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("3.243967828418230563002680965147453083111", 0) == 0 ||
+                std::get<1>(coef).rfind("3.243967828418230563002680965147453083110", 0) == 0 ||
+                std::get<1>(coef).rfind("3.243967828418230563002680965147453083109", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 2)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("4.530831099195710455764075067024128686327", 0) == 0 || std::get<1>(coef).rfind("4.530831099195710455764075067024128686326", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("4.530831099195710455764075067024128686328", 0) == 0 ||
+                std::get<1>(coef).rfind("4.530831099195710455764075067024128686327", 0) == 0 ||
+                std::get<1>(coef).rfind("4.530831099195710455764075067024128686326", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == -2);
         }
         else if (i == 3)
         {
             BOOST_TEST(std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("1.533512064343163538873994638069705093834", 0) == 0 || std::get<1>(coef).rfind("1.533512064343163538873994638069705093833", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.533512064343163538873994638069705093835", 0) == 0 ||
+                std::get<1>(coef).rfind("1.533512064343163538873994638069705093834", 0) == 0 ||
+                std::get<1>(coef).rfind("1.533512064343163538873994638069705093833", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 4)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("8.042895442359249329758713136729222520107", 0) == 0 || std::get<1>(coef).rfind("8.042895442359249329758713136729222520106", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("8.042895442359249329758713136729222520108", 0) == 0 ||
+                std::get<1>(coef).rfind("8.042895442359249329758713136729222520107", 0) == 0 ||
+                std::get<1>(coef).rfind("8.042895442359249329758713136729222520106", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 0);
         }
         else if (i == 5)
         {
             BOOST_TEST(!std::get<0>(coef)); 
-            BOOST_TEST((std::get<1>(coef).rfind("1.512064343163538873994638069705093833780", 0) == 0 || std::get<1>(coef).rfind("1.512064343163538873994638069705093833779", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(coef).rfind("1.512064343163538873994638069705093833781", 0) == 0 ||
+                std::get<1>(coef).rfind("1.512064343163538873994638069705093833780", 0) == 0 ||
+                std::get<1>(coef).rfind("1.512064343163538873994638069705093833779", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(coef) == 1);
         }
     }
@@ -1225,13 +1656,21 @@ BOOST_AUTO_TEST_CASE(testSolveQuadratic)
         if (i == 0)
         {
             BOOST_TEST(std::get<0>(root)); 
-            BOOST_TEST((std::get<1>(root).rfind("6.7656414525108398788", 0) == 0 || std::get<1>(root).rfind("6.7656414525108398787", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root).rfind("6.7656414525108398789", 0) == 0 ||
+                std::get<1>(root).rfind("6.7656414525108398788", 0) == 0 ||
+                std::get<1>(root).rfind("6.7656414525108398787", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root) == -1);
         }
         else if (i == 1)
         {
             BOOST_TEST(std::get<0>(root));
-            BOOST_TEST((std::get<1>(root).rfind("3.1295583037285078489", 0) == 0 || std::get<1>(root).rfind("3.1295583037285078488", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root).rfind("3.1295583037285078490", 0) == 0 ||
+                std::get<1>(root).rfind("3.1295583037285078489", 0) == 0 ||
+                std::get<1>(root).rfind("3.1295583037285078488", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root) == 0);
         }
     }
@@ -1247,13 +1686,21 @@ BOOST_AUTO_TEST_CASE(testSolveQuadratic)
         if (i == 0)
         {
             BOOST_TEST(std::get<0>(root));
-            BOOST_TEST((std::get<1>(root).rfind("6.76564145251083987876879502160", 0) == 0 || std::get<1>(root).rfind("6.76564145251083987876879502159", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root).rfind("6.76564145251083987876879502161", 0) == 0 ||
+                std::get<1>(root).rfind("6.76564145251083987876879502160", 0) == 0 ||
+                std::get<1>(root).rfind("6.76564145251083987876879502159", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root) == -1);
         }
         else if (i == 1)
         {
             BOOST_TEST(std::get<0>(root));
-            BOOST_TEST((std::get<1>(root).rfind("3.12955830372850784885781437539", 0) == 0 || std::get<1>(root).rfind("3.12955830372850784885781437538", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root).rfind("3.12955830372850784885781437540", 0) == 0 ||
+                std::get<1>(root).rfind("3.12955830372850784885781437539", 0) == 0 ||
+                std::get<1>(root).rfind("3.12955830372850784885781437538", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root) == 0);
         }
     }
@@ -1301,28 +1748,48 @@ BOOST_AUTO_TEST_CASE(testSolveCubic)
         if (i == 0)
         {
             BOOST_TEST(!std::get<0>(root_real)); 
-            BOOST_TEST((std::get<1>(root_real).rfind("4.6225599097010167068346290934", 0) == 0 || std::get<1>(root_real).rfind("4.6225599097010167068346290933", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("4.6225599097010167068346290935", 0) == 0 ||
+                std::get<1>(root_real).rfind("4.6225599097010167068346290934", 0) == 0 ||
+                std::get<1>(root_real).rfind("4.6225599097010167068346290933", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             // Imaginary part could technically have either sign in this case
-            BOOST_TEST((std::get<1>(root_imag).rfind("0.0000000000000000000000000000", 0) == 0 || std::get<1>(root_imag).rfind("-0.0000000000000000000000000000", 0) == 0));
+            BOOST_TEST(std::get<1>(root_imag).rfind("0.0000000000000000000000000000", 0) == 0); 
             BOOST_TEST(std::get<2>(root_imag) == 0);
         }
         else if (i == 1)
         {
             BOOST_TEST(std::get<0>(root_real));
-            BOOST_TEST((std::get<1>(root_real).rfind("8.0966516574883980416667150263", 0) == 0 || std::get<1>(root_real).rfind("8.0966516574883980416667150262", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("8.0966516574883980416667150264", 0) == 0 ||
+                std::get<1>(root_real).rfind("8.0966516574883980416667150263", 0) == 0 ||
+                std::get<1>(root_real).rfind("8.0966516574883980416667150262", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             BOOST_TEST(!std::get<0>(root_imag)); 
-            BOOST_TEST((std::get<1>(root_imag).rfind("8.9130596059275302403974487956", 0) == 0 || std::get<1>(root_imag).rfind("8.9130596059275302403974487955", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_imag).rfind("8.9130596059275302403974487957", 0) == 0 ||
+                std::get<1>(root_imag).rfind("8.9130596059275302403974487956", 0) == 0 ||
+                std::get<1>(root_imag).rfind("8.9130596059275302403974487955", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_imag) == -1);
         }
         else if (i == 2)
         {
             BOOST_TEST(std::get<0>(root_real)); 
-            BOOST_TEST((std::get<1>(root_real).rfind("8.0966516574883980416667150263", 0) == 0 || std::get<1>(root_real).rfind("8.0966516574883980416667150262", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("8.0966516574883980416667150264", 0) == 0 ||
+                std::get<1>(root_real).rfind("8.0966516574883980416667150263", 0) == 0 ||
+                std::get<1>(root_real).rfind("8.0966516574883980416667150262", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             BOOST_TEST(std::get<0>(root_imag)); 
-            BOOST_TEST((std::get<1>(root_imag).rfind("8.9130596059275302403974487956", 0) == 0 || std::get<1>(root_imag).rfind("8.9130596059275302403974487955", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_imag).rfind("8.9130596059275302403974487957", 0) == 0 ||
+                std::get<1>(root_imag).rfind("8.9130596059275302403974487956", 0) == 0 ||
+                std::get<1>(root_imag).rfind("8.9130596059275302403974487955", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_imag) == -1);
         }
     }
@@ -1347,28 +1814,48 @@ BOOST_AUTO_TEST_CASE(testSolveCubic)
         if (i == 0)
         {
             BOOST_TEST(!std::get<0>(root_real));
-            BOOST_TEST((std::get<1>(root_real).rfind("4.62255990970101670683462909334950520555", 0) == 0 || std::get<1>(root_real).rfind("4.62255990970101670683462909334950520554", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("4.62255990970101670683462909334950520556", 0) == 0 ||
+                std::get<1>(root_real).rfind("4.62255990970101670683462909334950520555", 0) == 0 ||
+                std::get<1>(root_real).rfind("4.62255990970101670683462909334950520554", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             // Imaginary part could technically have either sign in this case
-            BOOST_TEST((std::get<1>(root_imag).rfind("0.00000000000000000000000000000000000000", 0) == 0 || std::get<1>(root_imag).rfind("-0.00000000000000000000000000000000000000", 0) == 0));
+            BOOST_TEST(std::get<1>(root_imag).rfind("0.00000000000000000000000000000000000000", 0) == 0);
             BOOST_TEST(std::get<2>(root_imag) == 0);
         }
         else if (i == 1)
         {
             BOOST_TEST(std::get<0>(root_real));
-            BOOST_TEST((std::get<1>(root_real).rfind("8.09665165748839804166671502629105955721", 0) == 0 || std::get<1>(root_real).rfind("8.09665165748839804166671502629105955720", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("8.09665165748839804166671502629105955722", 0) == 0 ||
+                std::get<1>(root_real).rfind("8.09665165748839804166671502629105955721", 0) == 0 ||
+                std::get<1>(root_real).rfind("8.09665165748839804166671502629105955720", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             BOOST_TEST(!std::get<0>(root_imag));
-            BOOST_TEST((std::get<1>(root_imag).rfind("8.91305960592753024039744879557940668782", 0) == 0 || std::get<1>(root_imag).rfind("8.91305960592753024039744879557940668781", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_imag).rfind("8.91305960592753024039744879557940668783", 0) == 0 ||
+                std::get<1>(root_imag).rfind("8.91305960592753024039744879557940668782", 0) == 0 ||
+                std::get<1>(root_imag).rfind("8.91305960592753024039744879557940668781", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_imag) == -1);
         }
         else if (i == 2)
         {
             BOOST_TEST(std::get<0>(root_real));
-            BOOST_TEST((std::get<1>(root_real).rfind("8.09665165748839804166671502629105955721", 0) == 0 || std::get<1>(root_real).rfind("8.09665165748839804166671502629105955720", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("8.09665165748839804166671502629105955722", 0) == 0 ||
+                std::get<1>(root_real).rfind("8.09665165748839804166671502629105955721", 0) == 0 ||
+                std::get<1>(root_real).rfind("8.09665165748839804166671502629105955720", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             BOOST_TEST(std::get<0>(root_imag));
-            BOOST_TEST((std::get<1>(root_imag).rfind("8.91305960592753024039744879557940668782", 0) == 0 || std::get<1>(root_imag).rfind("8.91305960592753024039744879557940668781", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_imag).rfind("8.91305960592753024039744879557940668783", 0) == 0 ||
+                std::get<1>(root_imag).rfind("8.91305960592753024039744879557940668782", 0) == 0 ||
+                std::get<1>(root_imag).rfind("8.91305960592753024039744879557940668781", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_imag) == -1);
         }
     }
@@ -1421,45 +1908,81 @@ BOOST_AUTO_TEST_CASE(testSolveQuintic)
         
         if (i == 0)
         {
-            BOOST_TEST(!std::get<0>(root_real)); 
-            BOOST_TEST((std::get<1>(root_real).rfind("8.011551530834036092615229000431606689577", 0) == 0 || std::get<1>(root_real).rfind("8.011551530834036092615229000431606689576", 0) == 0));
+            BOOST_TEST(!std::get<0>(root_real));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("8.011551530834036092615229000431606689578", 0) == 0 ||
+                std::get<1>(root_real).rfind("8.011551530834036092615229000431606689577", 0) == 0 ||
+                std::get<1>(root_real).rfind("8.011551530834036092615229000431606689576", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             BOOST_TEST(boost::multiprecision::abs(roots.first[i].imag()) < std::numeric_limits<mpfr_40>::epsilon());
         }
         else if (i == 1)
         {
             BOOST_TEST(!std::get<0>(root_real));
-            BOOST_TEST((std::get<1>(root_real).rfind("4.261332773189638878958458634920648066143", 0) == 0 || std::get<1>(root_real).rfind("4.261332773189638878958458634920648066142", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("4.261332773189638878958458634920648066144", 0) == 0 ||
+                std::get<1>(root_real).rfind("4.261332773189638878958458634920648066143", 0) == 0 ||
+                std::get<1>(root_real).rfind("4.261332773189638878958458634920648066142", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             BOOST_TEST(!std::get<0>(root_imag));
-            BOOST_TEST((std::get<1>(root_imag).rfind("5.703930114618632364573561806651850823911", 0) == 0 || std::get<1>(root_imag).rfind("5.703930114618632364573561806651850823910", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_imag).rfind("5.703930114618632364573561806651850823912", 0) == 0 ||
+                std::get<1>(root_imag).rfind("5.703930114618632364573561806651850823911", 0) == 0 ||
+                std::get<1>(root_imag).rfind("5.703930114618632364573561806651850823910", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_imag) == -1);
         }
         else if (i == 2)
         {
             BOOST_TEST(!std::get<0>(root_real));
-            BOOST_TEST((std::get<1>(root_real).rfind("4.261332773189638878958458634920648066143", 0) == 0 || std::get<1>(root_real).rfind("4.261332773189638878958458634920648066142", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("4.261332773189638878958458634920648066144", 0) == 0 ||
+                std::get<1>(root_real).rfind("4.261332773189638878958458634920648066143", 0) == 0 ||
+                std::get<1>(root_real).rfind("4.261332773189638878958458634920648066142", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             BOOST_TEST(std::get<0>(root_imag));
-            BOOST_TEST((std::get<1>(root_imag).rfind("5.703930114618632364573561806651850823911", 0) == 0 || std::get<1>(root_imag).rfind("5.703930114618632364573561806651850823910", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_imag).rfind("5.703930114618632364573561806651850823912", 0) == 0 ||
+                std::get<1>(root_imag).rfind("5.703930114618632364573561806651850823911", 0) == 0 ||
+                std::get<1>(root_imag).rfind("5.703930114618632364573561806651850823910", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_imag) == -1);
         }
         else if (i == 3)
         {
             BOOST_TEST(std::get<0>(root_real));
-            BOOST_TEST((std::get<1>(root_real).rfind("5.607534070521550542287349730881132261995", 0) == 0 || std::get<1>(root_real).rfind("5.607534070521550542287349730881132261994", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("5.607534070521550542287349730881132261996", 0) == 0 ||
+                std::get<1>(root_real).rfind("5.607534070521550542287349730881132261995", 0) == 0 ||
+                std::get<1>(root_real).rfind("5.607534070521550542287349730881132261994", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             BOOST_TEST(!std::get<0>(root_imag));
-            BOOST_TEST((std::get<1>(root_imag).rfind("4.987237601604699794368211275750465313412", 0) == 0 || std::get<1>(root_imag).rfind("4.987237601604699794368211275750465313411", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_imag).rfind("4.987237601604699794368211275750465313413", 0) == 0 ||
+                std::get<1>(root_imag).rfind("4.987237601604699794368211275750465313412", 0) == 0 ||
+                std::get<1>(root_imag).rfind("4.987237601604699794368211275750465313411", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_imag) == -1);
         }
         else if (i == 4)
         {
             BOOST_TEST(std::get<0>(root_real));
-            BOOST_TEST((std::get<1>(root_real).rfind("5.607534070521550542287349730881132261995", 0) == 0 || std::get<1>(root_real).rfind("5.607534070521550542287349730881132261994", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("5.607534070521550542287349730881132261996", 0) == 0 ||
+                std::get<1>(root_real).rfind("5.607534070521550542287349730881132261995", 0) == 0 ||
+                std::get<1>(root_real).rfind("5.607534070521550542287349730881132261994", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             BOOST_TEST(std::get<0>(root_imag));
-            BOOST_TEST((std::get<1>(root_imag).rfind("4.987237601604699794368211275750465313412", 0) == 0 || std::get<1>(root_imag).rfind("4.987237601604699794368211275750465313411", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_imag).rfind("4.987237601604699794368211275750465313413", 0) == 0 ||
+                std::get<1>(root_imag).rfind("4.987237601604699794368211275750465313412", 0) == 0 ||
+                std::get<1>(root_imag).rfind("4.987237601604699794368211275750465313411", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_imag) == -1);
         }
     }
@@ -1489,44 +2012,80 @@ BOOST_AUTO_TEST_CASE(testSolveQuintic)
         if (i == 0)
         {
             BOOST_TEST(!std::get<0>(root_real));
-            BOOST_TEST((std::get<1>(root_real).rfind("8.0115515308340360926152290004316066895772474042464", 0) == 0 || std::get<1>(root_real).rfind("8.0115515308340360926152290004316066895772474042463", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("8.0115515308340360926152290004316066895772474042465", 0) == 0 ||
+                std::get<1>(root_real).rfind("8.0115515308340360926152290004316066895772474042464", 0) == 0 ||
+                std::get<1>(root_real).rfind("8.0115515308340360926152290004316066895772474042463", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             BOOST_TEST(boost::multiprecision::abs(roots.first[i].imag()) < std::numeric_limits<mpfr_50>::epsilon());
         }
         else if (i == 1)
         {
             BOOST_TEST(!std::get<0>(root_real));
-            BOOST_TEST((std::get<1>(root_real).rfind("4.2613327731896388789584586349206480661427590651186", 0) == 0 || std::get<1>(root_real).rfind("4.2613327731896388789584586349206480661427590651185", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("4.2613327731896388789584586349206480661427590651187", 0) == 0 ||
+                std::get<1>(root_real).rfind("4.2613327731896388789584586349206480661427590651186", 0) == 0 ||
+                std::get<1>(root_real).rfind("4.2613327731896388789584586349206480661427590651185", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             BOOST_TEST(!std::get<0>(root_imag));
-            BOOST_TEST((std::get<1>(root_imag).rfind("5.7039301146186323645735618066518508239107126817095", 0) == 0 || std::get<1>(root_imag).rfind("5.7039301146186323645735618066518508239107126817094", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_imag).rfind("5.7039301146186323645735618066518508239107126817096", 0) == 0 ||
+                std::get<1>(root_imag).rfind("5.7039301146186323645735618066518508239107126817095", 0) == 0 ||
+                std::get<1>(root_imag).rfind("5.7039301146186323645735618066518508239107126817094", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_imag) == -1);
         }
         else if (i == 2)
         {
             BOOST_TEST(!std::get<0>(root_real));
-            BOOST_TEST((std::get<1>(root_real).rfind("4.2613327731896388789584586349206480661427590651186", 0) == 0 || std::get<1>(root_real).rfind("4.2613327731896388789584586349206480661427590651185", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("4.2613327731896388789584586349206480661427590651187", 0) == 0 ||
+                std::get<1>(root_real).rfind("4.2613327731896388789584586349206480661427590651186", 0) == 0 ||
+                std::get<1>(root_real).rfind("4.2613327731896388789584586349206480661427590651185", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             BOOST_TEST(std::get<0>(root_imag));
-            BOOST_TEST((std::get<1>(root_imag).rfind("5.7039301146186323645735618066518508239107126817095", 0) == 0 || std::get<1>(root_imag).rfind("5.7039301146186323645735618066518508239107126817094", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_imag).rfind("5.7039301146186323645735618066518508239107126817096", 0) == 0 ||
+                std::get<1>(root_imag).rfind("5.7039301146186323645735618066518508239107126817095", 0) == 0 ||
+                std::get<1>(root_imag).rfind("5.7039301146186323645735618066518508239107126817094", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_imag) == -1);
         }
         else if (i == 3)
         {
             BOOST_TEST(std::get<0>(root_real));
-            BOOST_TEST((std::get<1>(root_real).rfind("5.6075340705215505422873497308811322619952125544759", 0) == 0 || std::get<1>(root_real).rfind("5.6075340705215505422873497308811322619952125544758", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("5.6075340705215505422873497308811322619952125544760", 0) == 0 ||
+                std::get<1>(root_real).rfind("5.6075340705215505422873497308811322619952125544759", 0) == 0 ||
+                std::get<1>(root_real).rfind("5.6075340705215505422873497308811322619952125544758", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             BOOST_TEST(!std::get<0>(root_imag));
-            BOOST_TEST((std::get<1>(root_imag).rfind("4.9872376016046997943682112757504653134116713321119", 0) == 0 || std::get<1>(root_imag).rfind("4.9872376016046997943682112757504653134116713321118", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_imag).rfind("4.9872376016046997943682112757504653134116713321120", 0) == 0 ||
+                std::get<1>(root_imag).rfind("4.9872376016046997943682112757504653134116713321119", 0) == 0 ||
+                std::get<1>(root_imag).rfind("4.9872376016046997943682112757504653134116713321118", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_imag) == -1);
         }
         else if (i == 4)
         {
             BOOST_TEST(std::get<0>(root_real));
-            BOOST_TEST((std::get<1>(root_real).rfind("5.6075340705215505422873497308811322619952125544759", 0) == 0 || std::get<1>(root_real).rfind("5.6075340705215505422873497308811322619952125544758", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_real).rfind("5.6075340705215505422873497308811322619952125544760", 0) == 0 ||
+                std::get<1>(root_real).rfind("5.6075340705215505422873497308811322619952125544759", 0) == 0 ||
+                std::get<1>(root_real).rfind("5.6075340705215505422873497308811322619952125544758", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_real) == -1);
             BOOST_TEST(std::get<0>(root_imag));
-            BOOST_TEST((std::get<1>(root_imag).rfind("4.9872376016046997943682112757504653134116713321119", 0) == 0 || std::get<1>(root_imag).rfind("4.9872376016046997943682112757504653134116713321118", 0) == 0));
+            BOOST_TEST((
+                std::get<1>(root_imag).rfind("4.9872376016046997943682112757504653134116713321120", 0) == 0 ||
+                std::get<1>(root_imag).rfind("4.9872376016046997943682112757504653134116713321119", 0) == 0 ||
+                std::get<1>(root_imag).rfind("4.9872376016046997943682112757504653134116713321118", 0) == 0
+            ));
             BOOST_TEST(std::get<2>(root_imag) == -1);
         }
     }
